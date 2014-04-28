@@ -1,16 +1,59 @@
 \section{Scala Collections}
 
-why have collections in the library?
- - reuse
- - fast development
- - standardization (library interop)
+% http://docs.scala-lang.org/overviews/collections/introduction.html
 
-motivation
- - high-level interface: generic, easy conversions, comprehensions
- - performance: runtime aspect of the collections
- - balance these 2
+% what, why, how?
 
-talk about high-level:
+A collection, or an abstract data structure, defines a way to contain data
+within a single object (a container). Every collection has its own
+characteristics, that will determine its own strengths and weaknesses.
+
+Since collections have become a popular toolbox for solving common problems,
+Scala needs to provide a set of them, so a programmer can reuse the
+same ones, without defining them over and over by himself. By providing such 
+collections to the language, we also fix a semantic, so programmers all use the
+same interface, and understand each other.
+
+Thus, Scala collections need to be made in the most efficient way. They need
+to run fast, so the specific programmer doesn't need to reinvent the wheel each
+time he wants a better performance. In terms of performance, the implementation
+of such provided collections shouldn't be the bottleneck of a program.
+
+However, performance is not the only requirement for a collection. It should
+also provides a high-level interface to the user, so it only offers him a
+convenient way of using it, without knowing the exact implementation of it.
+Collections should also be generic, they should allow the user to choose the
+type he wants to contain. Conversions between them should be easy to apply, and
+comprehensions user-friendly.
+
+The problem with Scala collections lies between these two lines : performance
+and high-level interface. We should balance the two, and take the best
+compromise, so the collections are as convenient to use, and performant at the
+same time.
+
+
+% draft
+% 
+% Collections are a way to abstract data by regrouping it in a significant
+% container. In a more common sense, they are like a toolbox for the programmer.
+% 
+% Allow to store data in a convenient way. They are available by default in the
+% language, so it offers the possibility to reuse them. They are able to run fast.
+% They are standardized, which means that everyone knows how to interact and deal
+% with them. And most important, they are implemented in a generic fashion, which
+% allows to the user to use them in most general cases.
+% 
+% why have collections in the library?
+%  - reuse
+%  - fast development (what's the meaning of this, already?)
+%  - standardization (library interop)
+% 
+% motivation
+%  - high-level interface: generic, easy conversions, comprehensions
+%  - performance: runtime aspect of the collections
+%  - balance these 2
+% 
+% talk about high-level:
 
 \subsection{Collection Patterns}
 
@@ -19,8 +62,40 @@ Before we dive into optimizing, we will present the common patterns
 
 \subsubsection{Inheritance and Mixins}
 
+Inheritance and mixins are a way to regroup common behavior and identical
+patterns between classes. Since most of the collection share the same
+characteristics, it is natural to think of super class and traits to reduce code
+duplication and repetition.
+
 mixins \cite{scalable-component-abstractions}
 
 \subsubsection{Closure Encoding}
+
+
+
 \subsubsection{Builder Pattern}
+
+The Builder pattern allows to create a new collection from the elements of an
+existing one, by specifying to such functions a Builder that describes a way to
+build the new data structure from these elements.
+
+For instance, let's take a map function that applies the transformation (x =>
+if (x > 0) true else false) over all the elements of an existing List[Int]. This
+function will build a new List[Boolean] of the transformed elements, thanks to
+the builder given in parameter.
+
+To achieve this, map function will rely on a mapTo function, that takes into
+parameter a Builder, and the user-supplied function.
+
+<<code of mapTo, and map>>
+
+To make it even more user-friendly, there are also implicit objects of
+builders, so the user doesn't even have to know about builders.
+
+The Builder pattern also shows how type constructor polymorphism can play an
+essential role in factoring out boilerplate code without losing type safety.\cite{adriaan}
+
 \subsubsection{Numeric Pattern}
+
+The Numeric pattern allows to use a generic type as if they were numerical.
+Since there is no way of defining a type as numerical.

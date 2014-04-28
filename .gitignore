@@ -49,3 +49,4 @@ org.eclipse.jdt.core.prefs
 # ERC report paper archive
 erc/midterm-report/papers.tar.gz
 
+/src
