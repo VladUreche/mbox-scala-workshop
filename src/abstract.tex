@@ -1,4 +1,7 @@
+Generics on the Java Virtual Machine are implemented using erasure, with primitive types, such as integers and floating point numbers being boxed to heap objects whenever they interact with generic code. This degrades performance, since heap objects need to be created and garbage collected with each numeric operation.
 
- * explains the technical details of the miniboxing transformation
- * shows how the miniboxing transformation interacts with the high-level constructs in the Scala language
- * presents benchmarks that show the miniboxing plugin can produce optimal code for high-level constructs
+To ease this problem, Scala specialization translates generic code to multiple variants, each adapted to a primitive type. This provides good performance, but unfortunately does not scale well to classes with more type parameters. Miniboxing was created to address this scalability issue, by reducing the number of specialized variants to two. This reduces the bytecode produced while maintaining the performance of specialized generics.
+
+So far the miniboxing transformation has been shown to perform well on microbenchmarks, but in order to make it widely useful, it needs to interact well with high-level language constructs in Scala, such as closures, implicits and mixins. To check this, we benchmark the miniboxing transformation on patterns used in the Scala collections, arguably the most commonly used code written in Scala and show how the transformation interacts with the high-level constructs.
+
+The results we have obtained show that miniboxing is indeed scalable while significantly speeding up erased generics by factors of up to X and has slowdowns of at most Y\% compared to specialization.
