@@ -4,32 +4,36 @@
 
 % what, why, how?
 
-A collection, or an abstract data structure, defines a way to contain data
-within a single object (a container). Every collection has its own
-characteristics, that will determine its own strengths and weaknesses.
+\topic{A collection, or an abstract data structure, defines a way to contain data within a single object (a container)}. Every collection has its own characteristics, that will determine its own strengths and weaknesses.
 
-Since collections have become a popular toolbox for solving common problems,
-Scala needs to provide a set of them, so a programmer can reuse the
-same ones, without defining them over and over by himself. By providing such 
-collections to the language, we also fix a semantic, so programmers all use the
-same interface, and understand each other.
+\topic{Collections are an important toolbox for solving common problems}. Providing such collections to the Scala language offers several privileges to the programmer. He can use them to develop software faster and conveniently, reuse the same ones over different projects, and standardize their use.
 
-Thus, Scala collections need to be made in the most efficient way. They need
-to run fast, so the specific programmer doesn't need to reinvent the wheel each
-time he wants a better performance. In terms of performance, the implementation
-of such provided collections shouldn't be the bottleneck of a program.
+\topic{There are 2 criterias for writing collections: high-level interface, and performance.} Collections need to offer user-friendly methods to deal with them, so they are easy to use, but they also need to run fast in most of cases, so they do not fall behind and create the bottleneck of a program. 
 
-However, performance is not the only requirement for a collection. It should
-also provides a high-level interface to the user, so it only offers him a
-convenient way of using it, without knowing the exact implementation of it.
-Collections should also be generic, they should allow the user to choose the
-type he wants to contain. Conversions between them should be easy to apply, and
-comprehensions user-friendly.
+\topic{Scala collections provide high-level interface, but they lack in performance.} Due to the use of the Java Vitual Machine erasure, the process of boxing and unboxing for primitive types takes a significant amount of time. Therefore, Miniboxing should solve this problem, and make the Scala Collection efficient by specializing the collections used with primitive types.
 
-The problem with Scala collections lies between these two lines : performance
-and high-level interface. We should balance the two, and take the best
-compromise, so the collections are as convenient to use, and performant at the
-same time.
+% Since collections have become a popular toolbox for solving common problems,
+% Scala needs to provide a set of them, so a programmer can reuse the
+% same ones, without defining them over and over by himself. By providing such 
+% collections to the language, we also fix a semantic, so programmers all use the
+% same interface, and understand each other.
+% 
+% Thus, Scala collections need to be made in the most efficient way. They need
+% to run fast, so the specific programmer doesn't need to reinvent the wheel each
+% time he wants a better performance. In terms of performance, the implementation
+% of such provided collections shouldn't be the bottleneck of a program.
+% 
+% However, performance is not the only requirement for a collection. It should
+% also provides a high-level interface to the user, so it only offers him a
+% convenient way of using it, without knowing the exact implementation of it.
+% Collections should also be generic, they should allow the user to choose the
+% type he wants to contain. Conversions between them should be easy to apply, and
+% comprehensions user-friendly.
+% 
+% The problem with Scala collections lies between these two lines : performance
+% and high-level interface. We should balance the two, and take the best
+% compromise, so the collections are as convenient to use, and performant at the
+% same time.
 
 
 % draft
@@ -58,14 +62,11 @@ same time.
 \subsection{Collection Patterns}
 
 In Scala, we have the high-level right\ldots
-Before we dive into optimizing, we will present the common patterns
+Before we dive into optimizing, we will present the common patterns used in Collections.
 
 \subsubsection{Inheritance and Mixins}
 
-Inheritance and mixins are a way to regroup common behavior and identical
-patterns between classes. Since most of the collection share the same
-characteristics, it is natural to think of super class and traits to reduce code
-duplication and repetition.
+Inheritance and mixins are a way to regroup common behavior and identical patterns between classes. Since most of the collection share the same characteristics, it is natural to think of super class and traits to reduce code duplication and repetition.
 
 mixins \cite{scalable-component-abstractions}
 
@@ -88,6 +89,14 @@ To achieve this, map function will rely on a mapTo function, that takes into
 parameter a Builder, and the user-supplied function.
 
 <<code of mapTo, and map>>
+
+%   def map[B, NewColl](f: A => B)(implicit bf: CanBuildFrom[Coll, B, NewColl]): NewColl = {
+%     val bulilder = bf(repr)
+%     bulilder.sizeHint(this)
+%     val b = builder
+%     for (x <- this) b += f(x)
+%     b.result
+%   }
 
 To make it even more user-friendly, there are also implicit objects of
 builders, so the user doesn't even have to know about builders.
