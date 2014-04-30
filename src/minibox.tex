@@ -37,7 +37,7 @@ Specialization will duplicate the body of |identity| and adapt it for each unbox
  def identity_C(t: `char`): `char` = t
  def identity_S(t: `short`): `short` = t
  def identity_I(t: `int`): `int` = t
- def identity_J(t: `long`): `long` = t
+ def identity_M(t: `long`): `long` = t
  def identity_F(t: `float`): `float` = t
  def identity_D(t: `double`): `double` = t
  val x: int = identity_I(5)
@@ -103,41 +103,41 @@ Later in the compilation pipeline, since the type parameter |T| is marked as |@m
 \begin{lstlisting-nobreak}
  trait A {
    def t: Object
-   def t_J(T_Tag: byte): long
+   def t_M(T_Tag: byte): long
  }
 \end{lstlisting-nobreak}
 
-The trait |A| will have two instantiations, one for object (called |A_L|) and one for primitive types (called |A_J|):
+The trait |A| will have two instantiations, one for object (called |A_L|) and one for primitive types (called |A_M|):
 
 \begin{lstlisting-nobreak}
  class A_L extends A {
    // class constructor omitted
    private[this] val _t: Object
    def t: Object = _t
-   def t_J(T_Tag: byte): long = box2minibox(T_Tag, t)
+   def t_M(T_Tag: byte): long = box2minibox(T_Tag, t)
  }
 \end{lstlisting-nobreak}
 
-In the |A_L| class, the field |_t| is an object passed by reference, which is similar to the erasure transformation. Instead, in the |A_J| class, the field is specialized:
+In the |A_L| class, the field |_t| is an object passed by reference, which is similar to the erasure transformation. Instead, in the |A_M| class, the field is specialized:
 
 \begin{lstlisting-nobreak}
- class A_J extends A {
+ class A_M extends A {
    // class constructor omitted
    private[this] val _t: long
    private[this] val T_Class_Tag: byte
-   def t: Object = minibox2box(T_Tag, t_J(T_Tag))
-   def t_J(T_Tag: byte): long = _t
+   def t: Object = minibox2box(T_Tag, t_M(T_Tag))
+   def t_M(T_Tag: byte): long = _t
  }
 \end{lstlisting-nobreak}
 
-The alert reader may notice a redundancy of tags in the translation of |A_J|: it has both a filed |T_Class_Tag| and a |T_Tag| argument in the |t_J| accessor. However, this is the correct translation, as the |A_L| class, which does not carry a tag, requires a local tag in order to pack its argument into the miniboxed form efficiently. On the other hand, the |A_J| class requires a tag field to enable the |t| accessor, which needs to pack a miniboxed into a boxed representation, therefore needs to have the tag available.
+The alert reader may notice a redundancy of tags in the translation of |A_M|: it has both a filed |T_Class_Tag| and a |T_Tag| argument in the |t_M| accessor. However, this is the correct translation, as the |A_L| class, which does not carry a tag, requires a local tag in order to pack its argument into the miniboxed form efficiently. On the other hand, the |A_M| class requires a tag field to enable the |t| accessor, which needs to pack a miniboxed into a boxed representation, therefore needs to have the tag available.
 
-A valid question at this point is why use such a complicated translation instead of leaving the generic class as |A| and overriding it with the specialized class |A_J| which is instantiated for primitive types. We will only briefly mention the reasons and point the reader to \cite{miniboxing} for a full explanation: (1) in such a setup the generic fields from |A| would be inherited into |A_J|, thus bloating the runtime memory requirements and (2) this would break specialized class inheritance:
+A valid question at this point is why use such a complicated translation instead of leaving the generic class as |A| and overriding it with the specialized class |A_M| which is instantiated for primitive types. We will only briefly mention the reasons and point the reader to \cite{miniboxing} for a full explanation: (1) in such a setup the generic fields from |A| would be inherited into |A_M|, thus bloating the runtime memory requirements and (2) this would break specialized class inheritance:
 
 \begin{lstlisting-nobreak}
  class B[@miniboxed T](t) extends A[T](t)
- // what is the superclass of B_J? B or A_J?
- // if B is an interface => it's A_J
+ // what is the superclass of B_M? B or A_M?
+ // if B is an interface => it's A_M
  // if B is a class => no multiple inheritance
 \end{lstlisting-nobreak}
 
@@ -159,7 +159,7 @@ The simplest redirection is the method redirection, which was shown in the |iden
    }
 \end{lstlisting-nobreak}
 
-Which is translated to |print_n_times| and |print_n_times_M|, which has the following body:
+Which is translated to |printn| and |printn_M|, which has the following body:
 
 \begin{lstlisting-nobreak}
  def printn_M(T_Tag: byte, n: int, t: long) =
@@ -179,14 +179,14 @@ Object creation is also modified to take primitive types and miniboxed type para
 The expressions are correct before miniboxing, but do not make sense after the transformation, since |A| becomes an interface. To fix this, the miniboxing transformation redirects object creation:
 
 \begin{lstlisting-nobreak}
- val a = new `A_J`[Int](`INT`, 5)
+ val a = new `A_M`[Int](`INT`, 5)
  val b = new `A_L`[String]("x")
 \end{lstlisting-nobreak}
 
 Miniboxed classes introduce another dimension to method redirection, by adding rewiring based on the receiver:
 
 \begin{lstlisting-nobreak}
-  a.t // redirected to t_J(INT)
+  a.t // redirected to .t_M(INT)
   b.t // left as .t
 \end{lstlisting-nobreak}
 
@@ -202,11 +202,11 @@ This example is rewritten to:
 \begin{lstlisting-nobreak}
   trait B {
     def foo: T
-    def foo_J: long
+    def foo_M: long
   }
-  // classes B_L and B_J omitted
-  class C extends B_J {
-    override def foo_J = minibox2int(5)
+  // classes B_L and B_M omitted
+  class C extends B_M {
+    override def foo_M = minibox2int(5)
   }
 \end{lstlisting-nobreak}
 
