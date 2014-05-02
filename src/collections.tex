@@ -6,11 +6,11 @@
 
 \topic{A collection, or an abstract data structure, defines a way to contain data within a single object (a container)}. Every collection has its own characteristics, that will determine its own strengths and weaknesses.
 
-\topic{Collections are an important toolbox for solving common problems}. Providing such collections to the Scala language offers several privileges to the programmer. He can use them to develop software faster and conveniently, reuse the same ones over different projects, and standardize their use.
+\topic{Collections are an important toolbox for solving common problems}. Providing such collections to the Scala language offers several advantages: the collections become standardized in the language, they can be used to develop software faster and conveniently, and a programmer can reuse the same ones over different projects.
 
-\topic{There are 2 criterias for writing collections: high-level interface, and performance.} Collections need to offer user-friendly methods to deal with them, so they are easy to use, but they also need to run fast in most of cases, so they do not fall behind and create the bottleneck of a program. 
+\topic{There are 2 important criterias for writing collections: high-level interface, and performance.} Collections need to offer user-friendly methods to deal with them, so they are easy to use, but they also need to run fast in most of cases, so they do not create the bottleneck of a program. 
 
-\topic{Scala collections provide high-level interface, but they lack in performance.} Due to the use of the Java Vitual Machine erasure, the process of boxing and unboxing for primitive types takes a significant amount of time. Therefore, Miniboxing should solve this problem, and make the Scala Collection efficient by specializing the collections used with primitive types.
+\topic{Scala collections provide high-level interface, but they lack in performance.} Due to the use of the Java Vitual Machine erasure, the process of boxing and unboxing for primitive types takes a significant amount of time. Therefore, the Miniboxing plugin should solve this problem, and make the Scala Collections efficient by specializing the collections used with primitive types.
 
 % Since collections have become a popular toolbox for solving common problems,
 % Scala needs to provide a set of them, so a programmer can reuse the
@@ -61,32 +61,62 @@
 
 \subsection{Collection Patterns}
 
-In Scala, we have the high-level right\ldots
-Before we dive into optimizing, we will present the common patterns used in Collections.
+Many patterns are used in Scala Collections. Before we dive into optimizing, we need to know how collections are made in Scala, so we know where the plugin can be applied, and what gain it will bring. In this section, we will present only the most common ones that must be optimized by Miniboxing. 
+
+% In Scala, we have the high-level right\ldots
+% Before we dive into optimizing, we will present the common patterns used in Collections.
 
 \subsubsection{Inheritance and Mixins}
 
-Inheritance and mixins are a way to regroup common behavior and identical patterns between classes. Since most of the collection share the same characteristics, it is natural to think of super class and traits to reduce code duplication and repetition.
+\topic{Inheritance and mixins are a way to regroup common behavior and identical patterns between classes.} Since most of the collection share the same characteristics, it is natural to think of super class and traits to reduce code repetition.
+
+Scala collections 
 
 mixins \cite{scalable-component-abstractions}
 
 \subsubsection{Closure Encoding}
 
+A closure refers to an open-term function that needs to be closed by providing it a scope of variables. Closures in Scala are very frequently used, since they offer important characteristics, such as defining higher-order functions. In order to understand how a closure is encoded in the language, let's look at an example.
 
+A closure that takes an |Int| as an argument and increments it by one is written in Scala as follows :
+
+\begin{lstlisting-nobreak}
+ (x: Int) => x + 1
+\end{lstlisting-nobreak}
+
+In Scala, it is common to use closures while dealing with of collections. As a continuation of the previous example, if one wants to increment each element in a |List| of integers, he can pass the previously shown closure as a parameter in the |map| function. However, the Java Virtual Machine doesn't support closures (at least until the 7th version of Java). Therefore, Scala needs to provide them by using a separate encoding.
+
+When the Scala Compiler meets a closure like the previous one, it will convert it as follows :
+
+\begin{lstlisting-nobreak}
+ {
+  class $anon extends Function1[Int, Int] {
+    def apply(x: Int) = x + 1
+  }
+  
+  new $anon
+ }
+\end{lstlisting-nobreak}
+
+This allows exposing functions to the first class citizens of the language. The closures can, as promised, be stored in variable, and therefore passed in parameters or be the type return of another function. The encoding here relies on the class |Function1| which allows to encode general functions that takes only one parameter in a generic setting :
+
+\begin{lstlisting-nobreak}
+ class Function1[-T, +S] {
+   def apply(t: T): S
+ }
+\end{lstlisting-nobreak}
+
+Since this function is generic, boxing and unboxing will occur if we use it with primitive types. Currently, |Function0|, |Function1| and |Function2| are specialized in the Scala Library, but we should have even better performance by using the Miniboxing plugin.
 
 \subsubsection{Builder Pattern}
 
-The Builder pattern allows to create a new collection from the elements of an
-existing one, by specifying to such functions a Builder that describes a way to
-build the new data structure from these elements.
+The Builder pattern allows to create a new collection from the elements of an existing one. It grants the possibility to pass from a collection to another one, or to update the same one with different elements.
 
-For instance, let's take a map function that applies the transformation (x =>
-if (x > 0) true else false) over all the elements of an existing List[Int]. This
-function will build a new List[Boolean] of the transformed elements, thanks to
-the builder given in parameter.
+% by specifying to such functions a Builder that describes a way to build the new data structure from these elements. (How)
 
-To achieve this, map function will rely on a mapTo function, that takes into
-parameter a Builder, and the user-supplied function.
+For instance, let's map the numbers of a |List| of integers to a |List| of Strings. One can use the |map| function of the collection |List| with the closure of |(x: Int) => "number " + x|. This will create a new |List| of the previous elements prepended with the text ``number'', but to achieve this, the |List| collection needs to know how to create a new |List| of String from the previous |List|. And this is provided by a builder, that will return the corresponding |List| if the requirements are met.
+
+To achieve this, the |map| function will rely on another predefined function |mapTo|, that takes into parameter a Builder, and the user-supplied function.
 
 <<code of mapTo, and map>>
 
@@ -98,11 +128,9 @@ parameter a Builder, and the user-supplied function.
 %     b.result
 %   }
 
-To make it even more user-friendly, there are also implicit objects of
-builders, so the user doesn't even have to know about builders.
+To make it even more user-friendly, there are also implicit objects of builders, so the user doesn't even have to know about builders. Currently, in Scala, there's the |CanBuildFrom[From, Elem, To]| that 
 
-The Builder pattern also shows how type constructor polymorphism can play an
-essential role in factoring out boilerplate code without losing type safety.\cite{adriaan}
+The Builder pattern also shows how type constructor polymorphism can play an essential role in factoring out boilerplate code without losing type safety.\cite{adriaan}
 
 \subsubsection{Numeric Pattern}
 
