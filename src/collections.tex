@@ -148,17 +148,17 @@ For instance, let's map the numbers of a |List| of integers to a |List| of Strin
 
 To achieve this, the |map| function will rely on another predefined function |mapTo|, that takes into parameter a Builder, and the user-supplied function.
 
-<<code of mapTo, and map>>
+\begin{lstlisting-nobreak}
+ def mapTo[B, NewColl](f: A => B)(implicit bd: Builder[B, NewColl]): NewColl = {
+   val builder = bd(repr)
+   builder.sizeHint(this)
+   val b = builder
+   for (x <- this) b += f(x)
+   b.result
+ }
+\end{lstlisting-nobreak}
 
-%   def map[B, NewColl](f: A => B)(implicit bf: CanBuildFrom[Coll, B, NewColl]): NewColl = {
-%     val bulilder = bf(repr)
-%     bulilder.sizeHint(this)
-%     val b = builder
-%     for (x <- this) b += f(x)
-%     b.result
-%   }
-
-To make it even more user-friendly, there are also implicit objects of builders, so the user doesn't even have to know about builders. Currently, in Scala, there's the |CanBuildFrom[From, Elem, To]| that 
+To make it even more user-friendly, the builders are called implicitly, so the user doesn't even have to know about it to map his collection. Currently, in Scala, there's the |CanBuildFrom[From, Elem, To]| that allows to build collections. It's used with the parallel traits |CollectionLike| which is used to build, by default, the same collection has it has started from.
 
 The Builder pattern also shows how type constructor polymorphism can play an essential role in factoring out boilerplate code without losing type safety.\cite{adriaan}
 
