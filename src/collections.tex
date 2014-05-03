@@ -76,7 +76,7 @@ mixins \cite{scalable-component-abstractions}
 
 \subsubsection{Closure Encoding}
 
-A closure refers to an open-term function that needs to be closed by providing it a scope of variables. Closures in Scala are very frequently used, since they offer important characteristics, such as defining higher-order functions. In order to understand how a closure is encoded in the language, let's look at an example.
+A closure refers to an open-term function that can to be closed by providing it a scope of variables. Closures in Scala are very frequently used, since they offer important characteristics, such as defining higher-order functions. In order to understand how a closure is encoded in the language, let's look at an example.
 
 A closure that takes an |Int| as an argument and increments it by one is written in Scala as follows :
 
@@ -84,29 +84,55 @@ A closure that takes an |Int| as an argument and increments it by one is written
  (x: Int) => x + 1
 \end{lstlisting-nobreak}
 
-In Scala, it is common to use closures while dealing with of collections. As a continuation of the previous example, if one wants to increment each element in a |List| of integers, he can pass the previously shown closure as a parameter in the |map| function. However, the Java Virtual Machine doesn't support closures (at least until the 7th version of Java). Therefore, Scala needs to provide them by using a separate encoding.
+In Scala, it is common to use closures while dealing with of collections. A lot of functions in collections use closures, the most common ones being |filter|, |map| and |fold|. As a continuation of the previous example, if one wants to increment each element in a |List| of integers, he can pass the previously shown closure as a parameter in the |map| function. However, the Java Virtual Machine doesn't support closures (at least until the 7th version of Java). Therefore, Scala needs to provide them by using a separate encoding.
 
 When the Scala Compiler meets a closure like the previous one, it will convert it as follows :
 
 \begin{lstlisting-nobreak}
  {
-  class $anon extends Function1[Int, Int] {
+  class $anonfun extends Function1[Int, Int] {
     def apply(x: Int) = x + 1
   }
   
-  new $anon
+  new $anonfun
  }
 \end{lstlisting-nobreak}
 
-This allows exposing functions to the first class citizens of the language. The closures can, as promised, be stored in variable, and therefore passed in parameters or be the type return of another function. The encoding here relies on the class |Function1| which allows to encode general functions that takes only one parameter in a generic setting :
+This allows exposing functions to the first class citizens of the language. Now, instead of containing a closure in a value, the compiler actually stores an instance of the |$anonfun$| class. Therefore, such classes can be passed in parameters or be the type return of another function, thanks to the inheritance of the |Function1| trait. Note that this trait allows to encode general functions that takes only one parameter |T| and returns only one parameter |S|, in a generic setting :
 
 \begin{lstlisting-nobreak}
- class Function1[-T, +S] {
+ trait Function1[-T, +S] {
    def apply(t: T): S
  }
 \end{lstlisting-nobreak}
 
-Since this function is generic, boxing and unboxing will occur if we use it with primitive types. Currently, |Function0|, |Function1| and |Function2| are specialized in the Scala Library, but we should have even better performance by using the Miniboxing plugin.
+Since this function is generic, boxing and unboxing will occur if we use it with primitive types. Currently, |Function0|, |Function1| and |Function2| are specialized in the Scala Library, but we should get even better performance by using the Miniboxing plugin.
+
+Therefore, instead of using common closures, we will define our own custom closures. 
+
+\begin{lstlisting-nobreak}
+ trait MyFunction1[@miniboxed -T, @miniboxed +S] {
+   def apply(t: T): S
+ }
+\end{lstlisting-nobreak}
+
+This will be called at every place we need to use closures. For instance, our custom |map| function from the |List| collection now takes an argument of type |MyFunction1| instead of a common closure |(T => S)|. However, everytime we want to write a function, we will have to construct it manually. By example, |(x: Int) => x + 1| now becomes :
+
+\begin{lstlisting-nobreak}
+ new MyFunction1[Int, Int] {
+   def apply(x: Int): Int = x + 1
+ }
+\end{lstlisting-nobreak}
+
+Since the function |apply| is called whenever arguments follows an object, we can call this custom function by putting some value for |x| right after the instanciation. In a more convenient fashion, let's show a complete example of a miniboxed function that maps every integer to a String, but contained in a value :
+
+\begin{lstlisting-nobreak}
+ val miniboxFun = new MyFunction1[Int, String] {
+   def apply(x: Int): String = x.toString
+ }
+ 
+ miniboxFun(3)    // returns "3"
+\end{lstlisting-nobreak}
 
 \subsubsection{Builder Pattern}
 
