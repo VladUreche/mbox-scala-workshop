@@ -37,7 +37,7 @@ Specialization will duplicate the body of |identity| and adapt it for each unbox
  def identity_C(t: `char`): `char` = t
  def identity_S(t: `short`): `short` = t
  def identity_I(t: `int`): `int` = t
- def identity_M(t: `long`): `long` = t
+ def identity_J(t: `long`): `long` = t
  def identity_F(t: `float`): `float` = t
  def identity_D(t: `double`): `double` = t
  val x: int = identity_I(5)
@@ -172,7 +172,7 @@ Which is translated to |printn| and |printn_M|, which has the following body:
 Object creation is also modified to take primitive types and miniboxed type parameters into account, thus redirecting to the correct miniboxed class. The following example shows this:
 
 \begin{lstlisting-nobreak}
- val a = new A[Int](5)
+ val a = new A[Int]def(5)
  val b = new A[String]("x")
 \end{lstlisting-nobreak}
 

@@ -4,32 +4,36 @@
 
 % what, why, how?
 
-\topic{A collection, or an abstract data structure, defines a way to contain data within a single object (a container)}. Every collection has its own characteristics, that will determine its own strengths and weaknesses.
+\topic{A collection defines the data structures and algorithms necessary to encapsulate data}. Every collection is tuned for a certain use case, thus balancing the heap space required with the time necessary for inserting, deleting or looking up elements. This gives rise to many tradeoffs, each with its own strengths and weaknesses.
 
-\topic{Collections are an important toolbox for solving common problems}. Providing such collections to the Scala language offers several advantages: the collections become standardized in the language, they can be used to develop software faster and conveniently, and a programmer can reuse the same ones over different projects.
+\topic{Collections are an important toolbox for solving common problems}. Providing collections in a language's standard library serves multiple purposes: (1) it maximizes code reuse, as the collections are implemented only once and used extensively, (2) it allows programmers to focus on the core functionality of their program and (3) it allows standardizing around a the collections in the library when communicating between different libraries.
 
-\topic{There are 2 important criterias for writing collections: high-level interface, and performance.} Collections need to offer user-friendly methods to deal with them, so they are easy to use, but they also need to run fast in most of cases, so they do not create the bottleneck of a program. 
+\topic{Collections in the standard library need to expose a simple and high-level interface while offering good performance.} The ease with which the programmers understand and use collections influences their adoption and thus whether code is reused and whether standardization occurs around collections. On the other hand, the extensive use of collections is only possible if the execution is efficient, so they do not become the bottleneck in a program.
 
-\topic{Scala collections provide high-level interface, but they lack in performance.} Due to the use of the Java Vitual Machine erasure, the process of boxing and unboxing for primitive types takes a significant amount of time. Therefore, the Miniboxing plugin should solve this problem, and make the Scala Collections efficient by specializing the collections used with primitive types.
+\topic{Scala collections provide a high-level interface but lack in performance.} Scala collections offer a high-level interface, with expressive operations such as mapping and filtering standardized across all collections. They also abstract over the type of data in the collection by using generics. This provides ease of use, type safety and flexibility at the cost of a slower execution for primitive types, which require boxing and unboxing due to the erasure transformation.
+
+\topic{In this paper we show how the miniboxing transformation enables improved colletions}, which expose the same high-level interface without sacrificing performance. The reason collections were not transformed with specialization, which predates miniboxing by 3 years, is twofold: (1) due to the important increase in bytecode size due to the transformation and (2) due to the mechanism used for class transformation, which leads to redundant fields in the specialized classes, thus unnecessarily doubling the heap requirements.
+
+The next section will explain the common patterns that enable the high-level interface in the Scala collections.
 
 % Since collections have become a popular toolbox for solving common problems,
 % Scala needs to provide a set of them, so a programmer can reuse the
-% same ones, without defining them over and over by himself. By providing such 
+% same ones, without defining them over and over by himself. By providing such
 % collections to the language, we also fix a semantic, so programmers all use the
 % same interface, and understand each other.
-% 
+%
 % Thus, Scala collections need to be made in the most efficient way. They need
 % to run fast, so the specific programmer doesn't need to reinvent the wheel each
 % time he wants a better performance. In terms of performance, the implementation
 % of such provided collections shouldn't be the bottleneck of a program.
-% 
+%
 % However, performance is not the only requirement for a collection. It should
 % also provides a high-level interface to the user, so it only offers him a
 % convenient way of using it, without knowing the exact implementation of it.
 % Collections should also be generic, they should allow the user to choose the
 % type he wants to contain. Conversions between them should be easy to apply, and
 % comprehensions user-friendly.
-% 
+%
 % The problem with Scala collections lies between these two lines : performance
 % and high-level interface. We should balance the two, and take the best
 % compromise, so the collections are as convenient to use, and performant at the
@@ -37,31 +41,31 @@
 
 
 % draft
-% 
+%
 % Collections are a way to abstract data by regrouping it in a significant
 % container. In a more common sense, they are like a toolbox for the programmer.
-% 
+%
 % Allow to store data in a convenient way. They are available by default in the
 % language, so it offers the possibility to reuse them. They are able to run fast.
 % They are standardized, which means that everyone knows how to interact and deal
 % with them. And most important, they are implemented in a generic fashion, which
 % allows to the user to use them in most general cases.
-% 
+%
 % why have collections in the library?
 %  - reuse
 %  - fast development (what's the meaning of this, already?)
 %  - standardization (library interop)
-% 
+%
 % motivation
 %  - high-level interface: generic, easy conversions, comprehensions
 %  - performance: runtime aspect of the collections
 %  - balance these 2
-% 
+%
 % talk about high-level:
 
 \subsection{Collection Patterns}
 
-Many patterns are used in Scala Collections. Before we dive into optimizing, we need to know how collections are made in Scala, so we know where the plugin can be applied, and what gain it will bring. In this section, we will present only the most common ones that must be optimized by Miniboxing. 
+Many patterns are used in Scala Collections. Before we dive into optimizing, we need to know how collections are made in Scala, so we know where the plugin can be applied, and what gain it will bring. In this section, we will present only the most common ones that must be optimized by Miniboxing.
 
 % In Scala, we have the high-level right\ldots
 % Before we dive into optimizing, we will present the common patterns used in Collections.
@@ -97,7 +101,7 @@ When the Scala Compiler meets a closure like the previous one, it will convert i
   class $anonfun extends Function1[Int, Int] {
     def apply(x: Int) = x + 1
   }
-  
+
   new $anonfun
  }
 \end{lstlisting-nobreak}
@@ -112,7 +116,7 @@ This allows exposing functions to the first class citizens of the language. Now,
 
 Since this function is generic, boxing and unboxing will occur if we use it with primitive types. Currently, |Function0|, |Function1| and |Function2| are specialized in the Scala Library, but we should get even better performance by using the Miniboxing plugin.
 
-Therefore, instead of using common closures, we will define our own custom closures. 
+Therefore, instead of using common closures, we will define our own custom closures.
 
 \begin{lstlisting-nobreak}
  abstract class MyFunction1[@miniboxed -T, @miniboxed +S] {
@@ -134,7 +138,7 @@ Since the function |apply| is called whenever arguments follows an object, we ca
  val miniboxFun = new MyFunction1[Int, String] {
    def apply(x: Int): String = x.toString
  }
- 
+
  miniboxFun(3)    // returns "3"
 \end{lstlisting-nobreak}
 
@@ -174,7 +178,7 @@ The Numeric pattern solves this issue and allows generic types to somehow be tre
    def plus(x: T, y: T): T
    def mult(x: T, y: T): T
    def equals(x: T, y: T): Boolean
-   
+
    def toInt(x: T): Int
    def toDouble(x: T): Double
  }
@@ -188,7 +192,7 @@ Different extensions of this class are provided with different type parameters. 
    def plus(x: Int, y: Int): Int = x + y
    def mult(x: Int, y: Int): Int = x * y
    def equals(x: Int, y: Int): Boolean = x == y
-   
+
    def toInt(x: Int): Int = x
    def toDouble(x: Int): Double = x
  }
@@ -198,7 +202,7 @@ Note that this object is made implicit, which means that our generic class shoul
 
 \begin{lstlisting-nobreak}
  class Matrix2x2[T : Numeric](val a: T, val b: T, val c: T, val d: T) {
- 
+
    def +(that: Matrix2x2[T]): Matrix2x2[T] = {
      val n = implicitly[Numeric[T]]
      new Matrix2x2[T](
@@ -207,7 +211,7 @@ Note that this object is made implicit, which means that our generic class shoul
        n.plus(this.c, that.c),
        n.plus(this.d, that.d))
    }
-   
+
    def -(that: Matrix2x2[T]): Matrix2x2[T] = {
      val n = implicitly[Numeric[T]]
      new Matrix2x2[T](
@@ -232,7 +236,7 @@ Note that this object is made implicit, which means that our generic class shoul
 %      val newD = n.plus(
 %        n.mult(this.c, that.b),
 %        n.mult(this.d, that.d))
-%      
+%
 %       new Matrix2x2[T](newA, newB, newC, newD)
 %    }
 %  }
