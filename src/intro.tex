@@ -2,7 +2,9 @@
 
 \topic{Scala collections allow storing data} in an abstract and type-safe manner. This is done using generics, which allow treating types as parameters of classes and methods. Using generics, it is possible to abstract over the type of the data in a collection, such as, for example, creating a linked list of integers. Safety is then guaranteed by the type system, which can guarantee all elements of the collection are actually integers. This increases productivity and improves code quality.
 
+\topic{Currently on the JVM, generics are impemented with type erasure}, which replaces all type parameters with their bounds or |Object|. As an advantage, it makes everything uniform, since everything is treated as an object. However, the field of generics being restricted to objects, one cannot substitute a type primitve such as integers and floating point numbers for a type parameter. Instead, an object of the type primitive must be made in order to use generics. Values of type primitves must now be contained within objects. This coercing process is called boxing. The opposite process, which extracts the type primitive value from an object, is called unboxing. The whole process of boxing and unboxing leads to slowdowns of performance.
 
+\topic{Miniboxing is an alternate transformation for generics in Scala.} It promises to offer the same benefits of generics, but without the process of boxing and unboxing, which is supposed to lead to slowdowns.
 
 
 \topic{But despite the uniformity exposed to programmers, the lower level translation of generic code struggles with fundamentally non-uniform data.} To illustrate the problem, we can analyze the |contains| method of a linked list parameterized on the element type, |T|, written in the Scala programming language:
