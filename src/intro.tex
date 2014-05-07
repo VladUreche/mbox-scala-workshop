@@ -1,6 +1,9 @@
 \section{Introduction}
 
-\topic{Generics allow programmers} to describe algorithms and data structures irrespective of the data they operate on. This enables code reuse and type safety. For the programmer, generic code, which uses parametric polymorphism, exposes a uniform and type safe interface that can be reused in different contexts, while offering the same behavior and guarantees. This increases productivity and improves code quality. Modern programming languages offer generic collections, such as linked lists, array buffers or maps as part of their standard libraries.
+\topic{Scala collections allow storing data} in an abstract and type-safe manner. This is done using generics, which allow treating types as parameters of classes and methods. Using generics, it is possible to abstract over the type of the data in a collection, such as, for example, creating a linked list of integers. Safety is then guaranteed by the type system, which can guarantee all elements of the collection are actually integers. This increases productivity and improves code quality.
+
+
+
 
 \topic{But despite the uniformity exposed to programmers, the lower level translation of generic code struggles with fundamentally non-uniform data.} To illustrate the problem, we can analyze the |contains| method of a linked list parameterized on the element type, |T|, written in the Scala programming language:
 
