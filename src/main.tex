@@ -188,7 +188,7 @@
 \newcommand{\newterm}[1]{{\em #1}}
 
 % Paper HACKS
-\setstretch{0.98}
+\setstretch{0.97}
 \renewcommand{\bibfont}{\scriptsize}
 %\renewcommand{\UrlFont}{\scriptsize}
 \renewcommand*{\UrlFont}{\ttfamily\footnotesize\relax}
@@ -201,7 +201,7 @@
 \titlebanner{DRAFT - Please do not circulate}        % These are ignored unless
 \preprintfooter{DRAFT - Please do not circulate}     % 'preprint' option specified.
 
-\title{Specializing Scala Collections with Miniboxing}
+\title{Improving the Performance of Scala Collections with Miniboxing}
 
 \authorinfo{Aymeric Gen\^et \and Vlad Ureche \and Martin Odersky}
            {EPFL, Switzerland}
@@ -211,18 +211,16 @@
 
 \input{abstract.tex}
 
-\category{E.2}{Object representation}{}
+% \category{E.2}{Object representation}{}
 
-\keywords
-specialization; miniboxing; scala collections; hashmap; builder pattern; type classes; numeric pattern; macros; quasiquotes; Scala
+% \keywords
+% specialization; miniboxing; scala collections; hashmap; builder pattern; type classes; numeric pattern; macros; quasiquotes; Scala
 
-\newpage
 \input{intro.tex}
 \input{minibox.tex}
-\input{plugin.tex}
 \input{collections.tex}
-\input{miniboxed-coll.tex}
 \input{bench.tex}
+\input{conclusions.tex}
 
 \bibliographystyle{abbrvnat}
 \bibliography{main}
