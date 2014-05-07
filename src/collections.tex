@@ -65,22 +65,18 @@ The next section will explain the common patterns that enable the high-level int
 
 \subsection{Collection Patterns}
 
-Many patterns are used in Scala Collections. Before we dive into optimizing, we need to know how collections are made in Scala, so we know where the plugin can be applied, and what gain it will bring. In this section, we will present only the most common ones that must be optimized by Miniboxing.
+Scala Collections use different patterns to expose their high-level interface consistently across all classes. Before we dive into optimizing, we need to know how collections are implemented in Scala, so we know where the plugin can be applied, and what gain it will bring. In this section, we will present only the most common patterns.
 
 % In Scala, we have the high-level right\ldots
 % Before we dive into optimizing, we will present the common patterns used in Collections.
 
 \subsubsection{Inheritance and Mixins}
 
-\topic{Inheritance and mixins are a way to regroup common behavior and identical patterns between classes.} It allows to reduce code duplication and to hierarchize the collections. If a class shares the same behavior as another one, it can extends it, and therefore inherits its functions. The class that inherits from another one becomes a sublcass, and the one that is extended becomes a superclass. In order to reduce code duplication, we define general behaviors in the superclass, and we make all the subclasses that share this pattern inherit from it. A class can be an extension of only one superclass. If a subclass needs to inherits functions from multiple classes, we use mixin. Unlike inheritance, mixin allows to inherit from as many traits as we want.
+\topic{Inheritance and mixins group common behavior among different classes.} This reduces code duplication and gives rise to a convenient collection hierarchy, where each level of the inheritance makes more assumptions about the collection than the previous level. If a class shares the same behavior as another one, it extends it, therefore inheriting and refining the functionality. In order to reduce code duplication, we define general behaviors in the superclass, and we make all the subclasses that share this pattern inherit from it. A class can be an extension of only one superclass. If a subclass needs to inherit functionality from multiple classes, it can mix in different traits \cite{scalable-component-abstractions}. Unlike inheritance, mixin allows extending as many traits as necessary.
 
-With these tools available, Scala collections are written to reduce code duplication as maximum as possible. \topic{Instead of hierarchizing the different collections, as in Java, Scala collections hierarchize the aspects that a collection can offer.} It allows to provide contracts to the user and to the programmer, so an instance of a specific aspect is guaranteed to meet the specific characteristic. Therefore, it offers a very flexible control of the characteristics that a programmer wants for a collection. Every aspect is described as a single trait or abstract class, and a concrete implementation inherits of these multiple aspects if it provides the promised characteristics.
+One of the key aims of the Scala collections is to reduce code duplication as much as possible. \topic{Instead of making a hierarchy of different collections, as in Java, Scala collections expose individual contracts in the form of traits.} These contracts are guaranteed to be respected thanks to the type system, thus allowing a very flexible choice of the characteristics of a collection. Every contract is signaled as a trait and the concrete implementation is inherited from the trait into the collection.
 
-For instance, a collection can offer a traversable aspect, i.e one can look upon all the elements contained in the collection. Therefore, the |Traversable| trait is made to offer such a characteristic. If a collection uses the |Traversable| trait, it is guaranteed that one can traverse all the elements of the collection, as long as the collection implements a version of the |foreach| function, which is provided by default by the trait.
-
-
-
-mixins \cite{scalable-component-abstractions}
+For example, a collection can offer a traversable contract, which guarantees all the elements contained in the collection can be visited. Mixing in the |Traversable| trait guarantees this propery by declaring an abstract |foreach| method, which collections must implement. Yet, traits can also contain implementations, and our collection can mix in different standard implementations of the |foreach| method, each optimized for a different type of collection, such as linear, indexed etc.
 
 \subsubsection{Closure Encoding}
 
