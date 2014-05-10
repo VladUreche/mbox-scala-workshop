@@ -144,7 +144,7 @@ The Builder pattern allows to create a new collection from the elements of an ex
 
 % by specifying to such functions a Builder that describes a way to build the new data structure from these elements. (How)
 
-For instance, let's map the numbers of a |List| of integers to a |List| of Strings. One can use the |map| function of the collection |List| with the closure of |(x: Int) => "number " + x|. This will create a new |List| of the previous elements prepended with the text ``number'', but to achieve this, the |List| collection needs to know how to create a new |List| of String from the previous |List|. And this is provided by a builder, that will return the corresponding |List| if the requirements are met.
+For instance, let's map the numbers of a |List| of integers to a |List| of Strings. One can use the |map| function of the collection |List| with the closure |(x: Int)| |=>| |"number " + x|. This will create a new |List| of the previous elements prepended with the text ``number'', but to achieve this, the |List| collection needs to know how to create a new |List| of String from the previous |List|. And this is provided by a builder, that will return the corresponding |List| if the requirements are met.
 
 To achieve this, the |map| function will rely on another predefined function |mapTo|, that takes into parameter a Builder, and the user-supplied function.
 
