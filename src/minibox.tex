@@ -24,14 +24,14 @@ def bar(t: `Object`): `Object` =
   (new C(t)).foo()   // erasure-based version
 \end{lstlisting-nobreak}
 
-Every time the method |bar[T]| is called with a primitive type parameter, the optimized version |bar_J| will be used instead. However, when the method is called with an object type parameter, such as a |String|, the original one will be used:
+Every time the method |bar[T]| is called with a primitive type parameter, the optimized version |bar_J| will be used instead. However, when the method is called with an object type parameter, such as |String|, the original one will be used:
 
 \begin{lstlisting-nobreak}
-bar("x")  // bar() is used
-bar(3)      // bar_J() is used
+bar[String]("x")  // bar() is used
+bar[Int](3)           // bar_J() is used
 \end{lstlisting-nobreak}
 
-Now let's look at the miniboxed class |C| from the previous example. The same kind of transformation as the one for methods will occur, two representations of the same class will be made:
+Now let's look at the miniboxed class |C| from the first example. The same kind of transformation as the one for methods will occur, two representations of the same class will be made:
 
 \begin{lstlisting-nobreak}
 class C_J(`T_Tag: byte`, t: `long`) {
@@ -45,7 +45,7 @@ class C(t: `Object`) {
 }
 \end{lstlisting-nobreak}
 
-Once again, if the class |C[T]| is instantiated with a primitive type paramater, it's |C_J| that will take place instead, otherwise, it's the original |C| class that takes place. As one can see, the methods inside the class are wired in order to match the correct call. If one uses the method |foo| in the optimized |C_J|, it's actually the |foo_J| method that must be called:
+Once again, if the class |C[T]| is instantiated with a primitive type paramater, it's |C_J| that will take place instead. Otherwise, it's the original |C| class that takes place. As one can see, the methods inside the class are wired in order to match the correct call. If one uses the method |foo| in the optimized |C_J|, it's actually the |foo_J| method that must be called:
 
 \begin{lstlisting-nobreak}
 val c_s = new C[String]("x")  // class C is used
@@ -56,4 +56,4 @@ println(c_i.foo())   // foo_J() is used
 
 The process of specialization on classes brings two important things. First, it will specialize the fields of the class. This will improve performance, because the program now deals with a shorter representation of the values. This is done by referring the fields as long integers, instead of objects. The conversion between the actual primitive type and the long value stored will also be made in the backend.
 
-Second, it will specialize the methods and their bodies in the class, just like stand-alone methods. This will also greatly improve performance. By specializing them, methods receive and return long integers, instead of references. Thanks to this, boxing and unboxing, originally occurring with references, will be avoided, because the methods only deal with primitive representation of the values. Once again, conversion between the actual primitive type and the long value stored will be made in a hidden way.
+Second, it will specialize the methods and their bodies in the class, just like stand-alone methods. This will also greatly improve performance. By specializing them, methods receive and return long integers, instead of references. Thanks to this, boxing and unboxing, originally occurring with references, will be avoided. Once again, conversion between the actual primitive type and the long value stored will be made in a hidden way.
