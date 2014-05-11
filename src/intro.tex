@@ -18,4 +18,4 @@ Generics are currently translated to low level bytecode using the technique of e
 \item benchmarking our mock-up of the Scala collections using both the erasure and miniboxing transformations.
 \end{packed_item}
 
-The paper first describes the miniboxing transformation, implemented as a plugin for the Scala compiler, then describes the patterns used in implementing Scala collections and how they are transformed by miniboxing and finally presents our mockup collections and the benchmark results.
+The paper first describes the miniboxing transformation, implemented as a plugin for the Scala compiler, then describes multiple patterns used in implementing Scala collections and their transformation with the miniboxing plugin: (1) their hierarchy, (2) the closures, (3) the builder Pattern, and (4) the Numeric pattern. Finally, it presents our mockup collections and the benchmark results.
