@@ -1,78 +1,16 @@
 \section{Scala Collections}
 
-% http://docs.scala-lang.org/overviews/collections/introduction.html
-
-% what, why, how?
-
-\topic{A collection defines the data structures and algorithms necessary to encapsulate data}. Every collection is tuned for a certain use case, thus balancing the heap space required with the time necessary for inserting, deleting or looking up elements. This gives rise to many tradeoffs, each with its own strengths and weaknesses.
-
-\topic{Collections are an important toolbox for solving common problems}. Providing collections in a language's standard library serves multiple purposes: (1) it maximizes code reuse, as the collections are implemented only once and used extensively, (2) it allows programmers to focus on the core functionality of their program and (3) it allows standardizing around a the collections in the library when communicating between different libraries.
-
-\topic{Collections in the standard library need to expose a simple and high-level interface while offering good performance.} The ease with which the programmers understand and use collections influences their adoption and thus whether code is reused and whether standardization occurs around collections. On the other hand, the extensive use of collections is only possible if the execution is efficient, so they do not become the bottleneck in a program.
-
 \topic{Scala collections provide a high-level interface but lack in performance.} Scala collections offer a high-level interface, with expressive operations such as mapping and filtering standardized across all collections. They also abstract over the type of data in the collection by using generics. This provides ease of use, type safety and flexibility at the cost of a slower execution for primitive types, which require boxing and unboxing due to the erasure transformation.
 
-\topic{In this paper we show how the miniboxing transformation enables improved colletions}, which expose the same high-level interface without sacrificing performance. The reason collections were not transformed with specialization, which predates miniboxing by 3 years, is twofold: (1) due to the important increase in bytecode size due to the transformation and (2) due to the mechanism used for class transformation, which leads to redundant fields in the specialized classes, thus unnecessarily doubling the heap requirements.
-
-The next section will explain the common patterns that enable the high-level interface in the Scala collections.
-
-% Since collections have become a popular toolbox for solving common problems,
-% Scala needs to provide a set of them, so a programmer can reuse the
-% same ones, without defining them over and over by himself. By providing such
-% collections to the language, we also fix a semantic, so programmers all use the
-% same interface, and understand each other.
-%
-% Thus, Scala collections need to be made in the most efficient way. They need
-% to run fast, so the specific programmer doesn't need to reinvent the wheel each
-% time he wants a better performance. In terms of performance, the implementation
-% of such provided collections shouldn't be the bottleneck of a program.
-%
-% However, performance is not the only requirement for a collection. It should
-% also provides a high-level interface to the user, so it only offers him a
-% convenient way of using it, without knowing the exact implementation of it.
-% Collections should also be generic, they should allow the user to choose the
-% type he wants to contain. Conversions between them should be easy to apply, and
-% comprehensions user-friendly.
-%
-% The problem with Scala collections lies between these two lines : performance
-% and high-level interface. We should balance the two, and take the best
-% compromise, so the collections are as convenient to use, and performant at the
-% same time.
-
-
-% draft
-%
-% Collections are a way to abstract data by regrouping it in a significant
-% container. In a more common sense, they are like a toolbox for the programmer.
-%
-% Allow to store data in a convenient way. They are available by default in the
-% language, so it offers the possibility to reuse them. They are able to run fast.
-% They are standardized, which means that everyone knows how to interact and deal
-% with them. And most important, they are implemented in a generic fashion, which
-% allows to the user to use them in most general cases.
-%
-% why have collections in the library?
-%  - reuse
-%  - fast development (what's the meaning of this, already?)
-%  - standardization (library interop)
-%
-% motivation
-%  - high-level interface: generic, easy conversions, comprehensions
-%  - performance: runtime aspect of the collections
-%  - balance these 2
-%
-% talk about high-level:
+\topic{In this paper we show how the miniboxing transformation enables improved colletions}, which expose the same high-level interface without sacrificing performance. The next section presents the common patterns that enable the high-level interface in the Scala collections, and how miniboxing can be applied in order to improve performance.
 
 \subsection{Collection Patterns}
 
-Scala Collections use different patterns to expose their high-level interface consistently across all classes. Before we dive into optimizing, we need to know how collections are implemented in Scala, so we know where the plugin can be applied, and what gain it will bring. In this section, we will present only the most common patterns.
-
-% In Scala, we have the high-level right\ldots
-% Before we dive into optimizing, we will present the common patterns used in Collections.
+Scala Collections use different patterns to expose their high-level interface consistently across all classes. Before we dive into optimizing, we need to know how collections are implemented in Scala, so we know where the plugin can be applied, and what gain it will bring. Note that we will present only the most common patterns.
 
 \subsubsection{Inheritance and Mixins}
 
-\topic{Inheritance and mixins group common behavior among different classes.} This reduces code duplication and gives rise to a convenient collection hierarchy, where each level of the inheritance makes more assumptions about the collection than the previous level. If a class shares the same behavior as another one, it extends it, therefore inheriting and refining the functionality. In order to reduce code duplication, we define general behaviors in the superclass, and we make all the subclasses that share this pattern inherit from it. A class can be an extension of only one superclass. If a subclass needs to inherit functionality from multiple classes, it can mix in different traits \cite{scalable-component-abstractions}. Unlike inheritance, mixin allows extending as many traits as necessary.
+\topic{Inheritance and mixins group common behavior among different classes.} This reduces code duplication and gives rise to a convenient collection hierarchy, where each level of the inheritance makes more assumptions about the collection than the previous level.
 
 One of the key aims of the Scala collections is to reduce code duplication as much as possible. \topic{Instead of making a hierarchy of different collections, as in Java, Scala collections expose individual contracts in the form of traits.} These contracts are guaranteed to be respected thanks to the type system, thus allowing a very flexible choice of the characteristics of a collection. Every contract is signaled as a trait and the concrete implementation is inherited from the trait into the collection.
 
@@ -80,15 +18,13 @@ For example, a collection can offer a traversable contract, which guarantees all
 
 \subsubsection{Closure Encoding}
 
-A closure refers to an open-term function that can to be closed by providing it a scope of variables. Closures in Scala are very frequently used, since they offer important characteristics, such as defining higher-order functions. In order to understand how a closure is encoded in the language, let's look at an example.
-
-A closure that takes an |Int| as an argument and increments it by one is written in Scala as follows :
+In Scala, it is common to use closures while dealing with collections. A lot of functions in collections use closures, the most common ones being |filter|, |map| and |fold|. If one wants to increment each element in a |List| of integers, he can pass the following closure as a parameter in the |map| function:
 
 \begin{lstlisting-nobreak}
- (x: Int) => x + 1
+ List(1,2,3).map(`(x: Int) => x + 1`)
 \end{lstlisting-nobreak}
 
-In Scala, it is common to use closures while dealing with of collections. A lot of functions in collections use closures, the most common ones being |filter|, |map| and |fold|. As a continuation of the previous example, if one wants to increment each element in a |List| of integers, he can pass the previously shown closure as a parameter in the |map| function. However, the Java Virtual Machine doesn't support closures (at least until the 7th version of Java). Therefore, Scala needs to provide them by using a separate encoding.
+ However, the Java Virtual Machine doesn't support closures (at least until the 7th version of Java). Therefore, Scala needs to provide them by using a separate encoding.
 
 When the Scala Compiler meets a closure like the previous one, it will convert it as follows :
 
@@ -102,7 +38,7 @@ When the Scala Compiler meets a closure like the previous one, it will convert i
  }
 \end{lstlisting-nobreak}
 
-This allows exposing functions to the first class citizens of the language. Now, instead of containing a closure in a value, the compiler actually stores an instance of the |$anonfun$| class. Therefore, such classes can be passed in parameters or be the type return of another function, thanks to the inheritance of the |Function1| trait. Note that this trait allows to encode general functions that takes only one parameter |T| and returns only one parameter |S|, in a generic setting :
+This allows exposing functions to the first class citizens of the language. In order to contain a closure in a value, the compiler actually stores an instance of the |\$anonfun| class. Therefore, such classes can be passed in parameters or be the type return of another function, thanks to type system. Note that this trait allows to encode general functions that takes only one parameter |T| and returns only one parameter |S|, in a generic setting :
 
 \begin{lstlisting-nobreak}
  trait Function1[-T, +S] {
@@ -110,32 +46,30 @@ This allows exposing functions to the first class citizens of the language. Now,
  }
 \end{lstlisting-nobreak}
 
-Since this function is generic, boxing and unboxing will occur if we use it with primitive types. Currently, |Function0|, |Function1| and |Function2| are specialized in the Scala Library, but we should get even better performance by using the Miniboxing plugin.
+Since this function is generic, boxing and unboxing will ensue if we use it with primitive types. Therefore, we should have better performance if we apply miniboxing on it.
 
-Therefore, instead of using common closures, we will define our own custom closures.
+Instead of using common Scala closures, we will define our own custom closures. Consequently, we will be able to annote them with the |@miniboxed| notation.
 
 \begin{lstlisting-nobreak}
- abstract class MyFunction1[@miniboxed -T, @miniboxed +S] {
+ abstract class MyFunction1[`@miniboxed` -T, `@miniboxed` +S] {
    def apply(t: T): S
  }
 \end{lstlisting-nobreak}
 
-This will be called at every place we need to use closures. For instance, our custom |map| function from the |List| collection now takes an argument of type |MyFunction1| instead of a common closure |(T => S)|. However, every time we want to write a function, we will have to construct it manually. By example, |(x: Int) => x + 1| now becomes :
+This will be called at every place we need to use closures. For instance, this is how we would encode and use a custom closure like |(x: Int) => x + 1|:
 
 \begin{lstlisting-nobreak}
- new MyFunction1[Int, Int] {
+ val miniboxFun = new MyFunction1[Int, Int] {
    def apply(x: Int): Int = x + 1
  }
+
+ miniboxFun(3)   // returns 4
 \end{lstlisting-nobreak}
 
-Since the function |apply| is called whenever arguments follows an object, we can call this custom function by putting some value for |x| right after the instantiation. For convenience sake, let's show a complete example of a miniboxed function that maps every integer to a String, but contained in a value :
+And a custom |map| function would now take an argument of type |MyFunction1[T,S]| in an implementation of |List[T]|:
 
 \begin{lstlisting-nobreak}
- val miniboxFun = new MyFunction1[Int, String] {
-   def apply(x: Int): String = x.toString
- }
-
- miniboxFun(3)    // returns "3"
+ def map[`@miniboxed S`](closure: MyFunction[T, S])
 \end{lstlisting-nobreak}
 
 \subsubsection{Builder Pattern}
