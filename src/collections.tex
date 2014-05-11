@@ -21,10 +21,10 @@ For example, a collection can offer a traversable contract, which guarantees all
 In Scala, it is common to use closures while dealing with collections. A lot of functions in collections use closures, the most common ones being |filter|, |map| and |fold|. If one wants to increment each element in a |List| of integers, he can pass the following closure as a parameter in the |map| function:
 
 \begin{lstlisting-nobreak}
- List(1,2,3).map(`(x: Int) => x + 1`)
+ List(1,2,3).map(`x => x + 1`)
 \end{lstlisting-nobreak}
 
- However, the Java Virtual Machine doesn't support closures (at least until the 7th version of Java). Therefore, Scala needs to provide them by using a separate encoding.
+However, the Java Virtual Machine doesn't support closures (at least until the 7th version of Java). Therefore, Scala needs to provide them by using a separate encoding.
 
 When the Scala Compiler meets a closure like the previous one, it will convert it as follows :
 
@@ -66,7 +66,7 @@ This will be called at every place we need to use closures. For instance, this i
  miniboxFun(3)   // returns 4
 \end{lstlisting-nobreak}
 
-And a custom |map| function would now take an argument of type |MyFunction1[T,S]| in an implementation of |List[T]|:
+Also, in an implementation of |List[T]|, a custom |map| function would now take an argument of type |MyFunction1[T,S]|:
 
 \begin{lstlisting-nobreak}
  def map[`@miniboxed S`](closure: MyFunction[T, S])
@@ -98,78 +98,35 @@ The Builder pattern also shows how type constructor polymorphism can play an ess
 
 \subsubsection{Numeric Pattern}
 
-Defining a generic type for a class can sometimes leads to inconvenient situations. Sometimes, one needs classes, such as |Matrix| and |Vector|, that depends only on numerical values. Due to the erasure of the JVM, generic objects don't offer many operations and functions, and it's therefore impossible to use mathematical operations on them.
+Defining a generic type for a class can sometimes leads to inconvenient situations. Sometimes, one needs classes that depends only on numerical values. Since the only common ancestor of every numeric types, primitive or objects, is |Any|, it's impossible to directly use specific mathematical operations on generic types.
 
-The Numeric pattern solves this issue and allows generic types to somehow be treated as if they were numbers. Since a generic type is, by default, an extension of the top of the class hierarchy, we can't just cast the objects in different types to use them. This is solved by creating a generic Numeric trait that provides such operations :
+The Numeric pattern solves this issue and allows to use custom functions on them. This is done by creating a generic |Numeric| trait that provides mathematical operations for a certain type. By example, one could define a way to add two numerical values, by providing such a definition to the trait:
 
 \begin{lstlisting-nobreak}
  trait Numeric[T] {
-   def minus(x: T, y: T): T
    def plus(x: T, y: T): T
-   def mult(x: T, y: T): T
-   def equals(x: T, y: T): Boolean
-
-   def toInt(x: T): Int
-   def toDouble(x: T): Double
  }
 \end{lstlisting-nobreak}
 
-Different extensions of this class are provided with different type parameters. We can write these specific classes only for the primitive ones that are numbers, i.e Byte, Short, Long, Int, Float, and Double, but we also could write it for any class, as long as these definitions are implemented. For instance, here's the code for the |Int| extension :
+By specifying the trait into different concrete extensions, we provide a concrete implementation that defines the addition between two values. We can write these specific classes for primitive numbers, e.g |Int| or |Float|, but we also could write it for any class, as long as the definition is implemented. For instance, here's the code for the |Int| extension:
 
 \begin{lstlisting-nobreak}
- implicit object NumericInt extends MyNumeric[Int] {
-   def minus(x: Int, y: Int): Int = x - y
+ implicit object Num_I extends Numeric[Int] {
    def plus(x: Int, y: Int): Int = x + y
-   def mult(x: Int, y: Int): Int = x * y
-   def equals(x: Int, y: Int): Boolean = x == y
-
-   def toInt(x: Int): Int = x
-   def toDouble(x: Int): Double = x
  }
 \end{lstlisting-nobreak}
 
-Note that this object is made implicit, which means that our generic class should be able to find it by itself. Now, every time we want to use a generic as a numeric type, we force that the |Numeric| version of it exists, so we can call the mathematical operations on them. Hence, a |Matrix2x2| class could be written as follows :
+Now, every time we want to use a generic as a numeric type, we force that the |Numeric| version of it exists, so we can call the mathematical operations on them. Hence, a |Vec2D| class could be written as follows :
 
 \begin{lstlisting-nobreak}
- class Matrix2x2[T : Numeric](val a: T, val b: T, val c: T, val d: T) {
-
-   def +(that: Matrix2x2[T]): Matrix2x2[T] = {
+ class Vec2D[T : Numeric](val x: T, val y: T) {
+   def +(that: Vec2D[T]): Vec2D[T] = {
      val n = implicitly[Numeric[T]]
-     new Matrix2x2[T](
-       n.plus(this.a, that.a),
-       n.plus(this.b, that.b),
-       n.plus(this.c, that.c),
-       n.plus(this.d, that.d))
-   }
-
-   def -(that: Matrix2x2[T]): Matrix2x2[T] = {
-     val n = implicitly[Numeric[T]]
-     new Matrix2x2[T](
-       n.minus(this.a, that.a),
-       n.minus(this.b, that.b),
-       n.minus(this.c, that.c),
-       n.minus(this.d, that.d))
+     new Vec2D[T](
+       n.plus(this.x, that.x),
+       n.plus(this.y, that.y))
    }
  }
 \end{lstlisting-nobreak}
-%    def *(that: Matrix2x2[T]): Matrix2x2[T] = {
-%      val n = implicitly[Numeric[T]]
-%      val newA = n.plus(
-%        n.mult(this.a, that.a),
-%        n.mult(this.b, that.c))
-%      val newB = n.plus(
-%        n.mult(this.a, that.b),
-%        n.mult(this.b, that.d))
-%      val newC = n.plus(
-%        n.mult(this.c, that.a),
-%        n.mult(this.d, that.c))
-%      val newD = n.plus(
-%        n.mult(this.c, that.b),
-%        n.mult(this.d, that.d))
-%
-%       new Matrix2x2[T](newA, newB, newC, newD)
-%    }
-%  }
-% \end{lstlisting-nobreak}
 
-Thanks to this pattern, the duplication of code has been reduced, and we still have collections that offer high-level interface, and generic templates. But, since the |Numeric| also takes generic type parameter, and since it's most likely a primitive type, boxing and unboxing would occur a lot during the operations. This is where the Miniboxing specialization steps in. With a miniboxed version of the |Numeric| class, no boxes are made during the super-class instantiation. The generic classes that are also likely to get primitive types deal therefore only with type primitive, which speeds the runtime up.
+Since the |Numeric| implementations are likely to use primitive type parameters, boxing and unboxing would occur a lot during the operations. This is where the miniboxing specialization steps in. With a |@miniboxed| annotation on the type parameter of the |Numeric| class, an optimized version for primitive type is overridden. The classes that use the |Numeric| objects should also have a |@miniboxed| annotation. Therefore, the overall performance is enhanced.
