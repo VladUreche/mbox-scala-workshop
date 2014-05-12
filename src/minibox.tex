@@ -15,7 +15,7 @@ def bar[`@miniboxed T`](t: T): T =
   (new C[T](t)).foo()
 \end{lstlisting-nobreak}
 
-Since the type parameter |T| of foo is marked as |@miniboxed|, the method will have two versions: an optimized version for value types, and the compatible, erasure-based, slow version of the method:
+Since the type parameter |T| of |bar| is marked as |@miniboxed|, the method will have two versions: an optimized version for value types, and the compatible, erasure-based, slow version of the method:
 
 \begin{lstlisting-nobreak}
 def bar_J(`T_Tag: byte`, t: `long`): `long` =

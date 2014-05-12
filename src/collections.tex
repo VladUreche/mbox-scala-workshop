@@ -14,7 +14,15 @@ Scala Collections use different patterns to expose their high-level interface co
 
 One of the key aims of the Scala collections is to reduce code duplication as much as possible. \topic{Instead of making a hierarchy of different collections, as in Java, Scala collections expose individual contracts in the form of traits.} These contracts are guaranteed to be respected thanks to the type system, thus allowing a very flexible choice of the characteristics of a collection. Every contract is signaled as a trait and the concrete implementation is inherited from the trait into the collection.
 
-For example, a collection can offer a traversable contract, which guarantees all the elements contained in the collection can be visited. Mixing in the |Traversable| trait guarantees this propery by declaring an abstract |foreach| method, which collections must implement. Yet, traits can also contain implementations, and our collection can mix in different standard implementations of the |foreach| method, each optimized for a different type of collection, such as linear, indexed etc.
+Another group classes in the current hierarchy allows to build collections from an initial collection while dealing with them; \topic{these are the CollectionLike}. Along with the suitable builders, it allows to return the appropriate collection, depending on how we deal with them, without duplicating the exact same piece of code that only differs from the return type. This is done by extending a trait which abstracts over the return type of the different methods offered by collections. As an advantage, every collection that shares the exact same pattern can also extend it, as long as we provide the appropriate builders.
+
+For example, a collection can offer a traversable contract, by mixing in the |Traversable| trait. Mixing in the |TraveresableLike| also guarantees this propery, and accords the possibility to build different collections from our current one, depending on what we do with them. Our collection can mix in different standard implementations, which are offered by different traits, each optimized for a different type of collection, such as linear, sorted, etc.
+
+Since the elements of the CollectionLike can be primitive types, the methods can receive or return boxes of primitive values, which degrades performance. Thus, triggering the miniboxing plugin on the type parameter of the element offers better performance. However, we have to annote only the generic type of the elements contained in the collection, and not the type constructor. Indeed, since this is an abstraction over a container that will always be an object, there is no need to make an primitive type optimized version for it. Therefore, we get better performance if we use a custom CollectionLike with a |@miniboxed| notation on the type |T|:
+
+\begin{lstlisting-nobreak}
+ trait TraversableLike[-Coll, @miniboxed +T]
+\end{lstlisting-nobreak}
 
 \subsubsection{Closure Encoding}
 
