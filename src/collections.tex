@@ -2,15 +2,16 @@
 
 % \topic{Scala collections provide a high-level interface but lack in performance.}
 
-\topic{In this paper we show how the miniboxing transformation enables improved collections}, which expose the same high-level interface without sacrificing performance. The next section presents the common patterns that enable the high-level interface in the Scala collections, and how miniboxing can be applied in order to improve performance.
+\topic{In this paper we show how the miniboxing transformation enables improved collections}, which expose the same high-level interface without sacrificing performance. The next section presents the common patterns that enable the high-level interface in the Scala collections \cite{collections-arch}, and how miniboxing can be applied in order to improve performance.
 
-\topic{In this paper we show how the miniboxing transformation improves collection performance} while exposing the same high-level interface.
+%\topic{In this paper we show how the miniboxing transformation improves collection performance} while exposing the same high-level interface.
+%Before we dive into optimizing, we will present the main patterns used to implement collections in Scala and how each of these patterns are transformed by the miniboxing transformation.
+% Note that we will present only the most common patterns.
 %Scala Collections use different patterns to expose their high-level interface consistently across all classes.
-Before we dive into optimizing, we will present the main patterns used to implement collections in Scala and how each of these patterns are transformed by the miniboxing transformation. % Note that we will present only the most common patterns.
 
 \subsection{Inheritance and Mixins}
 
-\topic{Inheritance and mixins group the common behavior of different collections.} This reduces code duplication and gives rise to a convenient collection hierarchy, where each level of the inheritance makes more assumptions about the architecture than the previous level. For example, the path to a linked list goes through |Traversable|, |Iterable|, |Seq|, |LinearSeq| and finally |List|. Each level makes an additional assumption: that the collection can be traversed, that it can be iterated, that it is a sequence, a linear sequence, and finally that it is a list.
+\topic{Inheritance and mixins group the common behavior of different collections.} This reduces code duplication and gives rise to a convenient collection hierarchy, where each level of the inheritance makes more assumptions about the architecture than the previous level. For example, the path to a linked list goes through |Traversable|, |Iterable|, |Seq|, |LinearSeq| and finally |List|. % Each level makes an additional assumption: that the collection can be traversed, that it can be iterated, that it is a sequence, a linear sequence, and finally that it is a list.
 
 This nesting and splitting of functionality makes is necessary to have deep miniboxing: Adding the |@miniboxed| annotation to a collection type parameter will not be enough to fully transform it, as most of its functionality will be inherited from parent traits. Instead, what needs to be done is to deeply visit all the parent traits and mark their arguments as |@miniboxed|:
 
