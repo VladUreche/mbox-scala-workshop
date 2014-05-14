@@ -28,19 +28,30 @@ This nesting and splitting of functionality makes is necessary to have deep mini
 
 Since the goal of Scala collections is to avoid code duplication, collection comprehensions, such as |map| and |filter|, all rely on a common mechanism: visiting each element in the collection, performing an action for it, and optionally adding a new element to the result collection. For example, |filter| visits all elements and for each element applies a predicate which decides whether the element should be part of the resulting collection or not.
 
-The two key elements necessary for implementing collection comprehensions are: (1) the mechanism to visit each element using a custom closure, which is implemented in |Traversable| and (2) a mechanism to build a collection element by element, which is the builder pattern. We will also present the Numeric pattern, which is used in methods like |max|, |min| or |sum|.
+The two key elements necessary for implementing collection comprehensions are: (1) the mechanism to visit each element using a custom function, which is implemented in |Traversable| and (2) a mechanism to build a collection element by element, which is the builder pattern. We will also present the Numeric pattern, which is used in methods like |sum| or |prod|.
 
-\subsection{Closure Encoding}
+\subsection{Function Encoding}
 
-In Scala, it is common to use closures while dealing with collections. A lot of functions in collections use closures, the most common ones being |filter|, |map| and |fold|. For example, if one wants to filter out all positive numbers in a |List| of integers, he can use the |filter| method along with the following closure:
+In Scala, it is common to use functions to manipulate collections. For example, in order to extract the positive numbers in a |List| of integers, we can use the |filter| method along with the following function:
 
 \begin{lstlisting-nobreak}
- List[Int].filter(`x => x < 0`)
+ List(1,2,3).filter(`x => x < 0`)
 \end{lstlisting-nobreak}
 
-However, since the Java Virtual Machine doesn't support closures (at least until the 7th version of Java), Scala needs to provide them by using a separate encoding that can't be overriden with a miniboxing version. Hence, in order to specialize closures, we need to provide custom ones, so we can use an optimized version of them.
+However, since the Java Virtual Machine doesn't support functions (at least not until Java 7), Scala needs to provide a special translation for them:
 
-This is done by creating a custom |MyFunc1| trait that will describe our new closure. This trait receives two type parameters, |T| and |S|, that describe the type translation of our closure, i.e |(T => S)|. It also offers an abstract |apply| function that will contain the actual code of the closure. Miniboxing is triggered by annoting both of the type parameters with |@miniboxed|:
+\begin{lstlisting-nobreak}
+ List(1,2,3).filter({
+     class $anon extends Function1[Int, Boolean] {
+       def apply(x: Int): Boolean = `x < 0`
+     }
+     new $anon()
+   })
+\end{lstlisting-nobreak}
+
+Still, the |Function1| is provided by the standard library and can't be overriden with a miniboxed version. Hence, in order to specialize functions, we need to provide our own function traits, which are miniboxed and perform the desugaring by hand.
+
+This is done by creating a custom |MyFunc1| trait that receives two type parameters, |T| and |R|, which signal the argument and return of our function, i.e |(T => R)|. This trait exposes an abstract |apply| function that will contain the actual code of the function. Miniboxing is triggered by annotating both of the type parameters with |@miniboxed|:
 
 \begin{lstlisting-nobreak}
  trait MyFunc1[`@miniboxed` -T, `@miniboxed` +S] {
@@ -48,35 +59,50 @@ This is done by creating a custom |MyFunc1| trait that will describe our new clo
  }
 \end{lstlisting-nobreak}
 
-The plugin will transform this trait into an interface, that will be used to declare the specialized classes. Along with the erasure-based version, the interface will provide four different methods ; each one describing a combination of whether the type parameters |T| and |S| are primitive or references:
+The plugin will generate five different traits, which will be used to encode functions. These correspond to the interface plus the 4 possible combinations for the 2 representations: (erased, erased), (erased, miniboxed), (miniboxed, erased), (miniboxed, miniboxed). The transformation will also create 4 versions of the |apply| method:
 
 \begin{lstlisting-nobreak}
-  abstract trait MyFunc1[-T, +S] extends Object {
-    def `apply`(t: T): S
+  abstract trait MyFunc1[-T, +R] extends Object {
+    def `apply`(t: T): R
+    def `apply_JL`(..., t: long): R
+    def `apply_LJ`(..., t: R): long
     def `apply_JJ`(..., t: long): long
-    def `apply_JL`(..., t: long): S
-    def `apply_LJ`(..., t: T): long
   }
 \end{lstlisting-nobreak}
 
-Then, just like methods, four different abstract traits that extend the previous interface will be made. Here is the optimized version for primitive type for both type parameters |T| and |S|:
+Then, just like methods, four different abstract traits that extend the previous interface will be created.
+
+% Here is the optimized version for primitive type for both type parameters |T| and |S|:
+% \begin{lstlisting-nobreak}
+%   abstract trait `MyFunc1_JJ`[-Tsp, +Ssp]
+%         extends MyFunc1[Tsp,Ssp] {
+%     def $S_TypeTag(): Byte
+%     def $T_TypeTag(): Byte
+%     def apply(t: Tsp): Ssp
+%     def apply_JJ(..., t: long): long
+%     def apply_JL(..., t: long): Ssp
+%     def apply_LJ(..., t: Tsp): long
+%   }
+%
+% \end{lstlisting-nobreak}
+
+Now, in order to express the previous function, we can write:
 
 \begin{lstlisting-nobreak}
-  abstract trait `MyFunc1_JJ`[-Tsp, +Ssp]
-        extends MyFunc1[Tsp,Ssp] {
-    def $S_TypeTag(): Byte
-    def $T_TypeTag(): Byte
-    def apply(t: Tsp): Ssp
-    def apply_JJ(..., t: long): long
-    def apply_JL(..., t: long): Ssp
-    def apply_LJ(..., t: Tsp): long
-  }
-
+ new MyFunc1[Int, Boolean] { def apply(x: Int): Boolean = x > 0 }
 \end{lstlisting-nobreak}
 
-Note that only the |apply_JJ| is used in this case, since it determines the optimized version when both of the type parameters are primitive types. The others methods only forward to this method.
+And the miniboxing transformation will translate this to:
 
-Now, if one instantiates |MyFunc1[T,S]| with both primitive types for |T| and |S| and provides an implementation for the |apply| method, the class will actually override the |MyFunc1_JJ| abstract trait, and the implementation will be provided to |apply_JJ|. Since the function |apply_JJ| offers direct primitive types instead of references for arguments and return type, it will greatly enhance performance.
+\begin{lstlisting-nobreak}
+ new `MyFunc1_JJ`[Int, Boolean] { ... }
+\end{lstlisting-nobreak}
+
+Now, any invocation of this function will actually invoke |apply_JJ|, thus completely avoiding boxing the primitive types |int| and |boolean| to their object representations.
+
+% Note that only the |apply_JJ| is used in this case, since it determines the optimized version when both of the type parameters are primitive types. The others methods only forward to this method.
+%
+% Now, if one instantiates |MyFunc1[T,S]| with both primitive types for |T| and |S| and provides an implementation for the |apply| method, the class will actually override the |MyFunc1_JJ| abstract trait, and the implementation will be provided to |apply_JJ|. Since the function |apply_JJ| offers direct primitive types instead of references for arguments and return type, it will greatly enhance performance.
 
 \subsection{Builder Pattern}
 
