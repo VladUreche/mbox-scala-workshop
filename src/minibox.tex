@@ -1,59 +1,71 @@
 \section{Miniboxing}
 
-Miniboxing\cite{miniboxing-www} is a compilation scheme that improves the performance of generics in the Scala programming language. The miniboxing transformation is activated by annotating type parameters with |@miniboxed|, for both classes and methods:
+Miniboxing \cite{miniboxing, miniboxing-www} is a compilation scheme that improves the performance of generics in the Scala programming language. The miniboxing transformation is activated by annotating type parameters with |@miniboxed|, for both classes and methods:
 
 \begin{lstlisting-nobreak}
-class C[`@miniboxed T`](var t: T) {
+class C[`@miniboxed T`](val t: T) {
   def foo(): T = t
 }
 \end{lstlisting-nobreak}
 
-In order to understand the transformation behind this annotation, let's look at the following example. Assume we want to write a generic method that is likely to use a primitive type parameter:
+In order to understand the transformation behind this annotation, let's look at the following example. Assume we want to write a generic method that will likely be used with primitive type arguments:
 
 \begin{lstlisting-nobreak}
 def bar[`@miniboxed T`](t: T): T =
   (new C[T](t)).foo()
 \end{lstlisting-nobreak}
 
-Since the type parameter |T| of |bar| is marked as |@miniboxed|, the method will have two versions: an optimized version for value types, and the compatible, erasure-based, slow version of the method:
+Since the type parameter |T| of the |bar| method is marked as |@miniboxed|, the method will have two versions: the erasure-based, slow version of the method and its specialized variant for primitive types, which encodes all primitive types (from booleans to double-precision floating point numbers) as long integers:
 
 \begin{lstlisting-nobreak}
-def bar_J(`T_Tag: byte`, t: `long`): `long` =
-  (new C_J(t)).foo_J()   // optimized version
 def bar(t: `Object`): `Object` =
-  (new C(t)).foo()   // erasure-based version
+  new C_L(t).foo(...)            // erasure-based version
+def bar_J(`T_Tag: byte`, t: `long`): `long` =
+  new C_J(...).foo_J(...)// specialized variant
 \end{lstlisting-nobreak}
 
-Every time the method |bar[T]| is called with a primitive type parameter, the optimized version |bar_J| will be used instead. However, when the method is called with an object type parameter, such as |String|, the original one will be used:
+Every time the programmer calls |bar| with a primitive type parameter, the compiler rewrites the code to call the optimized version |bar_J|. However, when the method is called with an object type parameter, such as |String|, the erasure-based method will be called:
 
 \begin{lstlisting-nobreak}
-bar[String]("x")  // bar() is used
-bar[Int](3)           // bar_J() is used
+bar[String]("x")  // bar is used
+bar[Int](3)           // bar_J is used
 \end{lstlisting-nobreak}
 
-Now let's look at the miniboxed class |C| from the first example. The same kind of transformation as the one for methods will occur, two representations of the same class will be made:
+Now let us look at the miniboxed class |C|. The first step will be to transform the class into an interface and create the specialized variants for accessors and methods:
 
 \begin{lstlisting-nobreak}
-class C_J(`T_Tag: byte`, t: `long`) {
-  def foo_J(): `long` = t
-  def foo(): `long` = foo_J()
+trait C {
+  def t: Object // erasure-based getter for t
+  def t_J(...): `long` // specialized getter for t
+  def foo(): Object
+  def foo_J(...): `long`
 }
+\end{lstlisting-nobreak}
 
-class C(t: `Object`) {
-  def foo_J(): `Object` = foo()
-  def foo(): `Object` = t
+Now, |C| will have two implementations, |C_L| and |C_J|:
+
+% In the generic |C_L|, the |t| field will be an |Object| while in |C_J|, the specialized variant, |t| will have type |long|. For brevity, we will not show the translation for |C_L| and |C_J|, and only mention that for each method and accessor, such as |t| and |foo|, there is an implementation and a forwarder. For example, in |C_J|, |t_J| returns the value of the (now private) parameter while |t| calls |t_J| and boxes its result.
+
+\begin{lstlisting-nobreak}
+class C_J(`T_Tag: byte`, `t: long`) extends C {
+  def t: Object = minibox2box(T_Tag, t_J(...))
+  def t_J(...): `long` = t
+  def foo(): Object = minibox2box(...)
+  def foo_J(...): `long` = t
 }
 \end{lstlisting-nobreak}
 
-Once again, if the class |C[T]| is instantiated with a primitive type paramater, it's |C_J| that will take place instead. Otherwise, it's the original |C| class that takes place. As one can see, the methods inside the class are wired in order to match the correct call. If one uses the method |foo| in the optimized |C_J|, it's actually the |foo_J| method that must be called:
+For brevity, we omit the implementation of |C_L|, which is similar, only that |t| is a reference and |T_Tag| disappears.
+
+In the user code, an instantiation of |C| with a primitive type paramater is rewritten to an instantiation of |C_J|. An instantiation with a reference paramter leads to an instantiation of |C_L|. The method calls are also rewired in order to match the expected types: If one uses the method |foo| in the optimized |C_J|, it's actually the |foo_J| method that must be called:
 
 \begin{lstlisting-nobreak}
-val c_s = new C[String]("x")  // class C is used
-val c_i = new C[Int](3)               // class C_J is used
+val c_s = new C[String]("x")// class C_L is used
+val c_i = new C[Int](3)              // class C_J is used
 println(c_s.foo())   // foo() is used
 println(c_i.foo())   // foo_J() is used
 \end{lstlisting-nobreak}
 
-The process of specialization on classes brings two important things. First, it will specialize the fields of the class. This will improve performance, because the program now deals with a shorter representation of the values. This is done by referring the fields as long integers, instead of objects. The conversion between the actual primitive type and the long value stored will also be made in the backend.
+The process of class specialization brings two important advantages: Firstly, since class fields are specialized, the performance of accessing fields will improve, because the program now deals with a direct value access instead of a reference-based access. This is done by representing fields as long integers, instead of objects. When necessary, the conversions between the long integer representation and the object representation are added by the transformation (|minibox2box| and |box2minibox|. Secondly, the memory footprint of the class will be reduced, since storing data in its primitive format requires less memory than creating a new object and storing a reference to it.
 
-Second, it will specialize the methods and their bodies in the class, just like stand-alone methods. This will also greatly improve performance. By specializing them, methods receive and return long integers, instead of references. Thanks to this, boxing and unboxing, originally occurring with references, will be avoided. Once again, conversion between the actual primitive type and the long value stored will be made in a hidden way.
+%Second, it will specialize the methods and their bodies in the class, just like stand-alone methods. This will also greatly improve performance. By specializing them, methods receive and return long integers, instead of references. Thanks to this, boxing and unboxing, originally occurring with references, will be avoided. Once again, conversion between the actual primitive type and the long value stored will be made in a hidden way.
