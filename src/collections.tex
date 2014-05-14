@@ -2,7 +2,7 @@
 
 % \topic{Scala collections provide a high-level interface but lack in performance.}
 
-Scala collections offer a high-level interface, with expressive operations such as mapping and filtering standardized across all collections. They also abstract over the type of data in the collection by using generics. This provides ease of use, type safety and flexibility at the cost of a slower execution for primitive types, which require boxing and unboxing due to the erasure transformation.
+\topic{In this paper we show how the miniboxing transformation enables improved collections}, which expose the same high-level interface without sacrificing performance. The next section presents the common patterns that enable the high-level interface in the Scala collections, and how miniboxing can be applied in order to improve performance.
 
 \topic{In this paper we show how the miniboxing transformation improves collection performance} while exposing the same high-level interface.
 %Scala Collections use different patterns to expose their high-level interface consistently across all classes.
@@ -32,15 +32,15 @@ The two key elements necessary for implementing collection comprehensions are: (
 
 \subsection{Closure Encoding}
 
-In Scala, it is common to use closures while dealing with collections. A lot of functions in collections use closures, the most common ones being |filter|, |map| and |fold|. For example, if one wants to filter positive numbers in a |List| of integers, he can use the |filter| method along with the following closure:
+In Scala, it is common to use closures while dealing with collections. A lot of functions in collections use closures, the most common ones being |filter|, |map| and |fold|. For example, if one wants to filter out all positive numbers in a |List| of integers, he can use the |filter| method along with the following closure:
 
 \begin{lstlisting-nobreak}
- List[Int](-1,0,1).filter(`x => x > 0`)
+ List[Int].filter(`x => x < 0`)
 \end{lstlisting-nobreak}
 
-However, since the Java Virtual Machine doesn't support closures (at least until the 7th version of Java), Scala needs to provide them by using a separate encoding, that we can't directly override with Miniboxing. Hence, in order to specialize closures, we need to provide custom ones, so we can use optimized version of them.
+However, since the Java Virtual Machine doesn't support closures (at least until the 7th version of Java), Scala needs to provide them by using a separate encoding that can't be overriden with a miniboxing version. Hence, in order to specialize closures, we need to provide custom ones, so we can use an optimized version of them.
 
-This is done by creating a custom |MyFunc1| trait that will describe our new closure. This trait receives two type parameters that describe the type translation of our closure, i.e |(T => S)|. It also offers an abstract |apply| function that will contain the actual code of the closure. Miniboxing is triggered by annoting both of the type parameters with |@miniboxed|:
+This is done by creating a custom |MyFunc1| trait that will describe our new closure. This trait receives two type parameters, |T| and |S|, that describe the type translation of our closure, i.e |(T => S)|. It also offers an abstract |apply| function that will contain the actual code of the closure. Miniboxing is triggered by annoting both of the type parameters with |@miniboxed|:
 
 \begin{lstlisting-nobreak}
  trait MyFunc1[`@miniboxed` -T, `@miniboxed` +S] {
@@ -48,35 +48,35 @@ This is done by creating a custom |MyFunc1| trait that will describe our new clo
  }
 \end{lstlisting-nobreak}
 
-The plugin will transform this trait into an abstract trait, that will define the interface for the specialized classes. Along with the erasure-based version, four different methods will be made ; each one describing a combination of whether the type parameters |T| and |S| are primitive or references:
+The plugin will transform this trait into an interface, that will be used to declare the specialized classes. Along with the erasure-based version, the interface will provide four different methods ; each one describing a combination of whether the type parameters |T| and |S| are primitive or references:
 
 \begin{lstlisting-nobreak}
   abstract trait MyFunc1[-T, +S] extends Object {
     def `apply`(t: T): S
-    def `apply_JJ`(T_TypeTag: Byte,
-        S_TypeTag: Byte, t: long): long
-    def `apply_JL`(T_TypeTag: Byte, t: long): S
-    def `apply_LJ`(S_TypeTag: Byte, t: T): long
+    def `apply_JJ`(..., t: long): long
+    def `apply_JL`(..., t: long): S
+    def `apply_LJ`(..., t: T): long
   }
 \end{lstlisting-nobreak}
 
-Then, four different abstract traits that extend the previous interface will be made. Here is the optimized version for primitive type for both type parameters |T| and |S|:
+Then, just like methods, four different abstract traits that extend the previous interface will be made. Here is the optimized version for primitive type for both type parameters |T| and |S|:
 
 \begin{lstlisting-nobreak}
-  abstract trait `MyFunc1_JJ`[-Tsp, +Ssp] extends MyFunc1[Tsp,Ssp] {
+  abstract trait `MyFunc1_JJ`[-Tsp, +Ssp]
+        extends MyFunc1[Tsp,Ssp] {
     def $S_TypeTag(): Byte
     def $T_TypeTag(): Byte
     def apply(t: Tsp): Ssp
-    def apply_JJ(T_TypeTag: Byte, S_TypeTag: Byte, t: long): long
-    def apply_JL(T_TypeTag: Byte, t: long): Ssp
-    def apply_LJ(S_TypeTag: Byte, t: Tsp): long
+    def apply_JJ(..., t: long): long
+    def apply_JL(..., t: long): Ssp
+    def apply_LJ(..., t: Tsp): long
   }
 
 \end{lstlisting-nobreak}
 
-Note that only the |apply_JJ| is used in this case, since it determines the optimized version when both of the type parameters are primitive types. The others methods, especially |apply|, only forward to this method.
+Note that only the |apply_JJ| is used in this case, since it determines the optimized version when both of the type parameters are primitive types. The others methods only forward to this method.
 
-Now, if one instantiates |MyFunc1[T,S]| with both primitive types for |T| and |S| and provides an implementation for the |apply| method, the class will actually override the |MyFunc1_JJ| abstract trait, and the implementation will be provided to |apply_JJ|. Since the function |apply_JJ| offers direct primitive types instead of references for arguments and return type, it will greatly enhance performance by avoiding boxing and unboxing processes.
+Now, if one instantiates |MyFunc1[T,S]| with both primitive types for |T| and |S| and provides an implementation for the |apply| method, the class will actually override the |MyFunc1_JJ| abstract trait, and the implementation will be provided to |apply_JJ|. Since the function |apply_JJ| offers direct primitive types instead of references for arguments and return type, it will greatly enhance performance.
 
 \subsection{Builder Pattern}
 
