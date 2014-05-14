@@ -106,34 +106,44 @@ Now, any invocation of this function will actually invoke |apply_JJ|, thus compl
 
 \subsection{Builder Pattern}
 
-The Builder pattern allows to create a new collection from the elements of an existing one. The pattern greatly reduce code duplication, when the methods differs only in their return types. To achieve this, a builder that contains the implementation of the creation of collections is provided to methods that returns such collections.
+The Builder pattern is the key component necessary for collection comprehensions: It greatly reduces code duplication, since all the collection comprehensions reduce to creating a new collection with either transformed of filtered elements. It also brings flexibility, as shown by the following example:
+
+\begin{lstlisting-nobreak}
+scala> val map = Map(1 -> 2, 2 -> 3)
+map: immutable.Map[Int,Int] = ...
+
+scala> map.map(`{ case (x, y) => (y, x) }`)
+res1: immutable.`Map[Int,Int]` = ...
+
+scala> map.map(`{ case (x, y) => x }`)
+res2: immutable.`Iterable[Int]` = ...
+\end{lstlisting-nobreak}
 
 % by specifying to such functions a Builder that describes a way to build the new data structure from these elements. (How)
 
-For instance, if one maps the elements of a |Map[Int, Int]| to some new combination |Long| |->| |Byte|, then the method should return a |Map[Double, String]|. But if one wants to map the key-value tuple to a single |Short| value, then it makes sense that the return type is no more a |Map|, but some |Iterable| collection, like a |List[Short]|. In other words:
+% For instance, if one maps the elements of a |Map[Int, Int]| to some new combination |Long| |->| |Byte|, then the method should return a |Map[Double, String]|. But if one wants to map the key-value tuple to a single |Short| value, then it makes sense that the return type is no more a |Map|, but some |Iterable| collection, like a |List[Short]|. In other words:
+%
+% \begin{lstlisting-nobreak}
+%  Map[Int,Int].map(f:(Int,Int) => (Long,Byte))
+%       // returns a Map[Long,Byte]
+%  Map[Int,Int].map(f:(Int,Int) => Short)
+%       // returns an Iterable[Short]
+% \end{lstlisting-nobreak}
+
+To achieve this, the |map| function will rely on a |Builder| generated from the |CanBuildFrom| parameter, where |Repr| is the current collection and |That| is the resulting collection:
 
 \begin{lstlisting-nobreak}
- Map[Int,Int].map(f:(Int,Int) => (Long,Byte))
-      // returns a Map[Long,Byte]
- Map[Int,Int].map(f:(Int,Int) => Short)
-      // returns an Iterable[Short]
-\end{lstlisting-nobreak}
-
-To achieve this, the |map| function will rely on another predefined function |mapTo|, that takes into parameter a Builder, and the user-supplied function.
-
-\begin{lstlisting-nobreak}
- def mapTo[B, NewColl](f: A => B)(implicit bd: Builder[B, NewColl]): NewColl = {
-   val builder = bd(repr)
-   builder.sizeHint(this)
-   val b = builder
-   for (x <- this) b += f(x)
-   b.result
- }
+  def map[B, `That`](f: A => B)(implicit bf: CanBuildFrom[`Repr`, B, `That`]): That = {
+    val b = bf(repr) // the builder
+    for (x <- this)
+      `b += f(x)`
+    b.result
+  }
 \end{lstlisting-nobreak}
 
 
 
-The Builder pattern also shows how type constructor polymorphism can play an essential role in factoring out boilerplate code without losing type safety.\cite{adriaan}
+The Builder pattern also shows how type constructor polymorphism can play an essential role in factoring out boilerplate code without losing type safety \cite{adriaan}.
 
 \subsection{Numeric Pattern}
 
