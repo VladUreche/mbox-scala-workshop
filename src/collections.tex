@@ -14,11 +14,11 @@ Scala Collections use different patterns to expose their high-level interface co
 
 One of the key aims of the Scala collections is to reduce code duplication as much as possible. \topic{Instead of making a hierarchy of different collections, as in Java, Scala collections expose individual contracts in the form of traits.} These contracts are guaranteed to be respected thanks to the type system, thus allowing a very flexible choice of the characteristics of a collection. Every contract is signaled as a trait and the concrete implementation is inherited from the trait into the collection.
 
-Another group classes in the current hierarchy allows to build collections from an initial collection while dealing with them; \topic{these are the CollectionLike}. Along with the suitable builders, it allows to return the appropriate collection, depending on how we deal with them, without duplicating the exact same piece of code that only differs from the return type. This is done by extending a trait which abstracts over the return type of the different methods offered by collections. As an advantage, every collection that shares the exact same pattern can also extend it, as long as we provide the appropriate builders.
+Another group of classes in the current hierarchy allows to build collections from an initial collection while dealing with them; \topic{these are the CollectionLike}. Along with the suitable builders, it allows to return the appropriate collection, depending on how we deal with them, without duplicating the exact same piece of code that only differs from the return type. This is done by extending a trait which abstracts over the return type of the different methods offered by collections. As an advantage, every collection that shares the exact same pattern can also extend it, as long as we provide the appropriate builders.
 
-For example, a collection can offer a traversable contract, by mixing in the |Traversable| trait. Mixing in the |TraveresableLike| also guarantees this propery, and accords the possibility to build different collections from our current one, depending on what we do with them. Our collection can mix in different standard implementations, which are offered by different traits, each optimized for a different type of collection, such as linear, sorted, etc.
+For example, a collection can offer a traversable contract, by mixing in the |Traversable| trait. Mixing in the |TraveresableLike| also guarantees this propery, but also accords the possibility to build different collections from our current one, depending on what we do with them. Our collection can mix in different standard implementations, which are offered by different traits, each optimized for a different type of collection, such as linear, sorted, etc.
 
-Since the elements of the CollectionLike can be primitive types, the methods can receive or return boxes of primitive values, which degrades performance. Thus, triggering the miniboxing plugin on the type parameter of the element offers better performance. However, we have to annote only the generic type of the elements contained in the collection, and not the type constructor. Indeed, since this is an abstraction over a container that will always be an object, there is no need to make an primitive type optimized version for it. Therefore, we get better performance if we use a custom CollectionLike with a |@miniboxed| notation on the type |T|:
+Since the elements of the CollectionLike can be primitive types, the methods implemented can receive or return boxes of primitive values, which degrades performance. Thus, triggering the miniboxing plugin on the type parameter of the element offers better performance. However, we have to annote only the generic type of the elements contained in the collection, and not the type constructor. Indeed, since this is an abstraction over a container that will always be an object, there is no need to make a primitive type optimized version for it. Therefore, we get better performance if we use a custom CollectionLike with a |@miniboxed| notation on the type |T|:
 
 \begin{lstlisting-nobreak}
  trait TraversableLike[-Coll, @miniboxed +T]
@@ -26,37 +26,15 @@ Since the elements of the CollectionLike can be primitive types, the methods can
 
 \subsubsection{Closure Encoding}
 
-In Scala, it is common to use closures while dealing with collections. A lot of functions in collections use closures, the most common ones being |filter|, |map| and |fold|. If one wants to increment each element in a |List| of integers, he can pass the following closure as a parameter in the |map| function:
+In Scala, it is common to use closures while dealing with collections. A lot of functions in collections use closures, the most common ones being |filter|, |map| and |fold|. For example, if one wants to filter positive numbers in a |List| of integers, he can use the |filter| method along with the following closure:
 
 \begin{lstlisting-nobreak}
- List(1,2,3).map(`x => x + 1`)
+ List[Int](-1,0,1).filter(`x => x > 0`)
 \end{lstlisting-nobreak}
 
-However, the Java Virtual Machine doesn't support closures (at least until the 7th version of Java). Therefore, Scala needs to provide them by using a separate encoding.
+However, since the Java Virtual Machine doesn't support closures (at least until the 7th version of Java), Scala needs to provide them by using a separate encoding, that we can't directly override with Miniboxing. Hence, in order to specialize closures, we need to provide custom ones, so we can use optimized version of them.
 
-When the Scala Compiler meets a closure like the previous one, it will convert it as follows :
-
-\begin{lstlisting-nobreak}
- {
-  class $anonfun extends Function1[Int, Int] {
-    def apply(x: Int) = x + 1
-  }
-
-  new $anonfun
- }
-\end{lstlisting-nobreak}
-
-This allows exposing functions to the first class citizens of the language. In order to contain a closure in a value, the compiler actually stores an instance of the |\$anonfun| class. Therefore, such classes can be passed in parameters or be the type return of another function, thanks to type system. Note that this trait allows to encode general functions that takes only one parameter |T| and returns only one parameter |S|, in a generic setting:
-
-\begin{lstlisting-nobreak}
- trait Function1[-T, +S] {
-   def apply(t: T): S
- }
-\end{lstlisting-nobreak}
-
-The function is used by calling |f.apply(1)|, which can be reduced to |f(1)|, thanks to Scala's syntactic sugar. Since this function is generic, boxing and unboxing will ensue if we use it with primitive types. Therefore, we should have better performance if we apply miniboxing on it.
-
-Instead of using common Scala closures, we will define our own custom closures. Consequently, we will be able to annote each type parameter with the |@miniboxed| notation:
+This is done by creating a custom |MyFunc1| trait that will describe our new closure. This trait receives two type parameters that describe the type translation of our closure, i.e |(T => S)|. It also offers an abstract |apply| function that will contain the actual code of the closure. Miniboxing is triggered by annoting both of the type parameters with |@miniboxed|:
 
 \begin{lstlisting-nobreak}
  trait MyFunc1[`@miniboxed` -T, `@miniboxed` +S] {
@@ -64,29 +42,50 @@ Instead of using common Scala closures, we will define our own custom closures. 
  }
 \end{lstlisting-nobreak}
 
-This will be called at every place we need to use closures. For instance, this is how we would encode and use a custom closure like |(x: Int) => x + 1|:
+The plugin will transform this trait into an abstract trait, that will define the interface for the specialized classes. Along with the erasure-based version, four different methods will be made ; each one describing a combination of whether the type parameters |T| and |S| are primitive or references:
 
 \begin{lstlisting-nobreak}
- val miniboxFun = new MyFunc1[Int, Int] {
-   def apply(x: Int): Int = x + 1
- }
-
- miniboxFun(3)   // returns 4
+  abstract trait MyFunc1[-T, +S] extends Object {
+    def `apply`(t: T): S
+    def `apply_JJ`(T_TypeTag: Byte,
+        S_TypeTag: Byte, t: long): long
+    def `apply_JL`(T_TypeTag: Byte, t: long): S
+    def `apply_LJ`(S_TypeTag: Byte, t: T): long
+  }
 \end{lstlisting-nobreak}
 
-Also, in an implementation of |List[T]|, a custom |map| function would now be written as:
+Then, four different abstract traits that extend the previous interface will be made. Here is the optimized version for primitive type for both type parameters |T| and |S|:
 
 \begin{lstlisting-nobreak}
- def map[`@miniboxed S`](closure: MyFunc1[T, S])
+  abstract trait `MyFunc1_JJ`[-Tsp, +Ssp] extends MyFunc1[Tsp,Ssp] {
+    def $S_TypeTag(): Byte
+    def $T_TypeTag(): Byte
+    def apply(t: Tsp): Ssp
+    def apply_JJ(T_TypeTag: Byte, S_TypeTag: Byte, t: long): long
+    def apply_JL(T_TypeTag: Byte, t: long): Ssp
+    def apply_LJ(S_TypeTag: Byte, t: Tsp): long
+  }
+  
 \end{lstlisting-nobreak}
+
+Note that only the |apply_JJ| is used in this case, since it determines the optimized version when both of the type parameters are primitive types. The others methods, especially |apply|, only forward to this method.
+
+Now, if one instantiates |MyFunc1[T,S]| with both primitive types for |T| and |S| and provides an implementation for the |apply| method, the class will actually override the |MyFunc1_JJ| abstract trait, and the implementation will be provided to |apply_JJ|. Since the function |apply_JJ| offers direct primitive types instead of references for arguments and return type, it will greatly enhance performance by avoiding boxing and unboxing processes.
 
 \subsubsection{Builder Pattern}
 
-The Builder pattern allows to create a new collection from the elements of an existing one. It grants the possibility to pass from a collection to another one, or to update the same one with different elements.
+The Builder pattern allows to create a new collection from the elements of an existing one. The pattern greatly reduce code duplication, when the methods differs only in their return types. To achieve this, a builder that contains the implementation of the creation of collections is provided to methods that returns such collections.
 
 % by specifying to such functions a Builder that describes a way to build the new data structure from these elements. (How)
 
-For instance, let's map the numbers of a |List| of integers to a |List| of Strings. One can use the |map| function of the collection |List| with the closure |(x: Int)| |=>| |"number " + x|. This will create a new |List| of the previous elements prepended with the text ``number'', but to achieve this, the |List| collection needs to know how to create a new |List| of String from the previous |List|. And this is provided by a builder, that will return the corresponding |List| if the requirements are met.
+For instance, if one maps the elements of a |Map[Int, Int]| to some new combination |Long| |->| |Byte|, then the method should return a |Map[Double, String]|. But if one wants to map the key-value tuple to a single |Short| value, then it makes sense that the return type is no more a |Map|, but some |Iterable| collection, like a |List[Short]|. In other words:
+
+\begin{lstlisting-nobreak}
+ Map[Int,Int].map(f:(Int,Int) => (Long,Byte))
+      // returns a Map[Long,Byte]
+ Map[Int,Int].map(f:(Int,Int) => Short)
+      // returns an Iterable[Short]
+\end{lstlisting-nobreak}
 
 To achieve this, the |map| function will rely on another predefined function |mapTo|, that takes into parameter a Builder, and the user-supplied function.
 
@@ -100,13 +99,13 @@ To achieve this, the |map| function will rely on another predefined function |ma
  }
 \end{lstlisting-nobreak}
 
-To make it even more user-friendly, the builders are called implicitly, so the user doesn't even have to know about it to map his collection. Currently, in Scala, there's the |CanBuildFrom[From, Elem, To]| that allows to build collections. It's used with the parallel traits |CollectionLike| which is used to build, by default, the same collection has it has started from.
+
 
 The Builder pattern also shows how type constructor polymorphism can play an essential role in factoring out boilerplate code without losing type safety.\cite{adriaan}
 
 \subsubsection{Numeric Pattern}
 
-Defining a generic type for a class can sometimes leads to inconvenient situations. Sometimes, one needs classes that depends only on numerical values. Since there's no common ancestor for numeric types (primitive or object), it's impossible to specify an adequate upper bound for a generic type that would offer direct specific mathematical operations.
+Defining a generic type for a class can sometimes leads to inconvenient situations. Sometimes, one needs classes that depends only on numerical values. Since there's no common ancestor for numeric types (primitive or object), it's impossible to specify an adequate upper bound for a generic type that would directly offer mathematical operations.
 
 The Numeric pattern solves this issue and allows to use custom functions on type parameters. This is done by creating a generic |Numeric| trait that provides mathematical operations for a certain type. By example, one could define a way to add two numerical values, by providing such a definition to the trait:
 
@@ -126,7 +125,7 @@ If we specify the trait into different concrete extensions, we provide a concret
  }
 \end{lstlisting-nobreak}
 
-Now, every time we want to use a type parameter as a numeric type, we enforce that the |Numeric| version of the type exists, so we can call the mathematical operations on them. Here is a complete example of a two-dimensional vector:
+Now, every time we want to use a type parameter as a numeric type, we enforce that the |Numeric| version of the type exists, so we can call the mathematical operations on them. Here is a complete example of a two-dimensional vector class:
 
 \begin{lstlisting-nobreak}
  class Vec2D[T : Numeric](val x: T, val y: T) {
