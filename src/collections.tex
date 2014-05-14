@@ -1,30 +1,36 @@
 \section{Scala Collections}
 
-\topic{Scala collections provide a high-level interface but lack in performance.} Scala collections offer a high-level interface, with expressive operations such as mapping and filtering standardized across all collections. They also abstract over the type of data in the collection by using generics. This provides ease of use, type safety and flexibility at the cost of a slower execution for primitive types, which require boxing and unboxing due to the erasure transformation.
+% \topic{Scala collections provide a high-level interface but lack in performance.}
 
-\topic{In this paper we show how the miniboxing transformation enables improved colletions}, which expose the same high-level interface without sacrificing performance. The next section presents the common patterns that enable the high-level interface in the Scala collections, and how miniboxing can be applied in order to improve performance.
+Scala collections offer a high-level interface, with expressive operations such as mapping and filtering standardized across all collections. They also abstract over the type of data in the collection by using generics. This provides ease of use, type safety and flexibility at the cost of a slower execution for primitive types, which require boxing and unboxing due to the erasure transformation.
 
-\subsection{Collection Patterns}
+\topic{In this paper we show how the miniboxing transformation improves collection performance} while exposing the same high-level interface.
+%Scala Collections use different patterns to expose their high-level interface consistently across all classes.
+Before we dive into optimizing, we will present the main patterns used to implement collections in Scala and how each of these patterns are transformed by the miniboxing transformation. % Note that we will present only the most common patterns.
 
-Scala Collections use different patterns to expose their high-level interface consistently across all classes. Before we dive into optimizing, we need to know how collections are implemented in Scala, so we know where the plugin can be applied, and what gain it will bring. Note that we will present only the most common patterns.
+\subsection{Inheritance and Mixins}
 
-\subsubsection{Inheritance and Mixins}
+\topic{Inheritance and mixins group the common behavior of different collections.} This reduces code duplication and gives rise to a convenient collection hierarchy, where each level of the inheritance makes more assumptions about the architecture than the previous level. For example, the path to a linked list goes through |Traversable|, |Iterable|, |Seq|, |LinearSeq| and finally |List|. Each level makes an additional assumption: that the collection can be traversed, that it can be iterated, that it is a sequence, a linear sequence, and finally that it is a list.
 
-\topic{Inheritance and mixins group common behavior among different classes.} This reduces code duplication and gives rise to a convenient collection hierarchy, where each level of the inheritance makes more assumptions about the collection than the previous level.
-
-One of the key aims of the Scala collections is to reduce code duplication as much as possible. \topic{Instead of making a hierarchy of different collections, as in Java, Scala collections expose individual contracts in the form of traits.} These contracts are guaranteed to be respected thanks to the type system, thus allowing a very flexible choice of the characteristics of a collection. Every contract is signaled as a trait and the concrete implementation is inherited from the trait into the collection.
-
-Another group of classes in the current hierarchy allows to build collections from an initial collection while dealing with them; \topic{these are the CollectionLike}. Along with the suitable builders, it allows to return the appropriate collection, depending on how we deal with them, without duplicating the exact same piece of code that only differs from the return type. This is done by extending a trait which abstracts over the return type of the different methods offered by collections. As an advantage, every collection that shares the exact same pattern can also extend it, as long as we provide the appropriate builders.
-
-For example, a collection can offer a traversable contract, by mixing in the |Traversable| trait. Mixing in the |TraveresableLike| also guarantees this propery, but also accords the possibility to build different collections from our current one, depending on what we do with them. Our collection can mix in different standard implementations, which are offered by different traits, each optimized for a different type of collection, such as linear, sorted, etc.
-
-Since the elements of the CollectionLike can be primitive types, the methods implemented can receive or return boxes of primitive values, which degrades performance. Thus, triggering the miniboxing plugin on the type parameter of the element offers better performance. However, we have to annote only the generic type of the elements contained in the collection, and not the type constructor. Indeed, since this is an abstraction over a container that will always be an object, there is no need to make a primitive type optimized version for it. Therefore, we get better performance if we use a custom CollectionLike with a |@miniboxed| notation on the type |T|:
+This nesting and splitting of functionality makes is necessary to have deep miniboxing: Adding the |@miniboxed| annotation to a collection type parameter will not be enough to fully transform it, as most of its functionality will be inherited from parent traits. Instead, what needs to be done is to deeply visit all the parent traits and mark their arguments as |@miniboxed|:
 
 \begin{lstlisting-nobreak}
- trait TraversableLike[-Coll, @miniboxed +T]
+ // trait/class definition needs to be marked:
+ trait Traversable[`@miniboxed` +A] extends
+ // parents' definitions also have to be marked:
+       TraversableLike[`A`, Traversable[A]]
+       with GenTraversable[`A`]
+       with TraversableOnce[`A`]
+       with GenericTraversableTemplate[`A`, Traversable] { ... }
 \end{lstlisting-nobreak}
 
-\subsubsection{Closure Encoding}
+%Since the elements of the CollectionLike can be primitive types, the methods implemented can receive or return boxes of primitive values, which degrades performance. Thus, triggering the miniboxing plugin on the type parameter of the element offers better performance. However, we have to annote only the generic type of the elements contained in the collection, and not the type constructor. Indeed, since this is an abstraction over a container that will always be an object, there is no need to make a primitive type optimized version for it. Therefore, we get better performance if we use a custom CollectionLike with a |@miniboxed| notation on the type |T|:
+
+Since the goal of Scala collections is to avoid code duplication, collection comprehensions, such as |map| and |filter|, all rely on a common mechanism: visiting each element in the collection, performing an action for it, and optionally adding a new element to the result collection. For example, |filter| visits all elements and for each element applies a predicate which decides whether the element should be part of the resulting collection or not.
+
+The two key elements necessary for implementing collection comprehensions are: (1) the mechanism to visit each element using a custom closure, which is implemented in |Traversable| and (2) a mechanism to build a collection element by element, which is the builder pattern. We will also present the Numeric pattern, which is used in methods like |max|, |min| or |sum|.
+
+\subsection{Closure Encoding}
 
 In Scala, it is common to use closures while dealing with collections. A lot of functions in collections use closures, the most common ones being |filter|, |map| and |fold|. For example, if one wants to filter positive numbers in a |List| of integers, he can use the |filter| method along with the following closure:
 
@@ -65,14 +71,14 @@ Then, four different abstract traits that extend the previous interface will be 
     def apply_JL(T_TypeTag: Byte, t: long): Ssp
     def apply_LJ(S_TypeTag: Byte, t: Tsp): long
   }
-  
+
 \end{lstlisting-nobreak}
 
 Note that only the |apply_JJ| is used in this case, since it determines the optimized version when both of the type parameters are primitive types. The others methods, especially |apply|, only forward to this method.
 
 Now, if one instantiates |MyFunc1[T,S]| with both primitive types for |T| and |S| and provides an implementation for the |apply| method, the class will actually override the |MyFunc1_JJ| abstract trait, and the implementation will be provided to |apply_JJ|. Since the function |apply_JJ| offers direct primitive types instead of references for arguments and return type, it will greatly enhance performance by avoiding boxing and unboxing processes.
 
-\subsubsection{Builder Pattern}
+\subsection{Builder Pattern}
 
 The Builder pattern allows to create a new collection from the elements of an existing one. The pattern greatly reduce code duplication, when the methods differs only in their return types. To achieve this, a builder that contains the implementation of the creation of collections is provided to methods that returns such collections.
 
@@ -103,7 +109,7 @@ To achieve this, the |map| function will rely on another predefined function |ma
 
 The Builder pattern also shows how type constructor polymorphism can play an essential role in factoring out boilerplate code without losing type safety.\cite{adriaan}
 
-\subsubsection{Numeric Pattern}
+\subsection{Numeric Pattern}
 
 Defining a generic type for a class can sometimes leads to inconvenient situations. Sometimes, one needs classes that depends only on numerical values. Since there's no common ancestor for numeric types (primitive or object), it's impossible to specify an adequate upper bound for a generic type that would directly offer mathematical operations.
 
