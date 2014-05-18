@@ -36,13 +36,13 @@ The two key elements necessary for implementing collection comprehensions are: (
 In Scala, it is common to use functions to manipulate collections. For example, in order to extract the positive numbers in a |List| of integers, we can use the |filter| method along with the following function:
 
 \begin{lstlisting-nobreak}
- List(1,2,3).filter(`x => x < 0`)
+ List(4,-2,1).filter(`x => x < 0`)
 \end{lstlisting-nobreak}
 
 However, since the Java Virtual Machine doesn't support functions (at least not until Java 7), Scala needs to provide a special translation for them:
 
 \begin{lstlisting-nobreak}
- List(1,2,3).filter({
+ List(4,-2,1).filter({
      class $anon extends Function1[Int, Boolean] {
        def apply(x: Int): Boolean = `x < 0`
      }
