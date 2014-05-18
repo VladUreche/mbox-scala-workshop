@@ -1,6 +1,6 @@
 \section{Benchmarks}
 
-In order to prove the efficienty of the miniboxing plugin, we wrote a benchmark about a common numerical application: the \textit{least squares method}. This method finds the best-fitting curve to a given set of points by minimizing the sum of the squares of the offsets of the points from the curve. The benchmark used is the following:
+In order to prove the efficiency of the miniboxing plugin, we wrote a benchmark about a common numerical application: the \textit{least squares method}. This method finds the best-fitting curve to a given set of points. Since it deals with numbers, type erasure would induce boxing and unboxing. The method should therefore run faster with the miniboxing plugin. The benchmark used is the following:
 
 \begin{lstlisting-nobreak}
  // returns a random value between (-1,1)
@@ -18,9 +18,9 @@ In order to prove the efficienty of the miniboxing plugin, we wrote a benchmark 
  val size = 10000 // amount of points
  var xs: List[Double] = Nil // list of x-coord.
  var ys: List[Double] = Nil // list of y-coord.
- var i = 0
  
  // fills xs/ys with function + noise
+ var i = 0
  while (i < size) {
   xs = (i + rand) :: xs
   ys = (func(i) + rand) :: ys
@@ -34,24 +34,28 @@ In order to prove the efficienty of the miniboxing plugin, we wrote a benchmark 
   new Function1[Tuple2[Double,Double], Double] {
      def apply(t: Tuple2[Double, Double]): Double = t._1 * t._2
  }
- val sumxy = listxy.map(fxy).sum
  
  // function x => x * x
  val fxx = new Function1[Double, Double] {
    def apply(x: Double): Double = x * x
  }
+ 
+ val sumx  = xs.sum
+ val sumy  = ys.sum
+ val sumxy = listxy.map(fxy).sum
  val squarex = listx.map(fxx).sum
  
- // slope and intercept approximations
+ // slope and intercept approximation
  val m = (size*sumxy - sumx*sumy) / (size*squarex - sumx*sumx)
  val b = (sumy*squarex - sumx*sumxy) / (size*squarex - sumx*sumx)
- 
- // was it a good approximation?
- assert(|m - slope| < 0.1)
- assert(|b - intercept| < 0.1)
 \end{lstlisting-nobreak}
+%  
+%  // was it a good approximation?
+%  assert(Math.abs(m - slope) < 0.1)
+%  assert(Math.abs(b - intercept) < 0.1)
+% \end{lstlisting-nobreak}
 
-For now, the results for an erasure-based type parameter (|Generic|) and the miniboxed version of them (|Miniboxed|) are the following :
+If we run one version of the above benchmark with the plugin activated (|Miniboxed|) and one without (|Generic|), for different amount of points, we get the following results:
 
 \begin{center}
 \begin{tabular}{ |c|c|c| } 
@@ -61,10 +65,10 @@ For now, the results for an erasure-based type parameter (|Generic|) and the min
  30,000 & 12.552 & 13.252 \\
  60,000 & 27.253 & 29.128 \\
  90,000 & 42.782 & 43.947 \\
-120,000 & 60.575 & 64.846 \\
+ 120,000 & 60.575 & 64.846 \\
  150,000 & 74.202 & 82.995 \\
  \hline
 \end{tabular}
 \end{center}
 
-The results are not very convincing, they show that the erasure version runs $\sim$10\% faster. This was due to some issues causing boxing and unboxing to occur, and thus slowing down the execution. We are currently debugging on this; once solved, we would definitely have to better numbers.
+The results show that the erasure version runs $\sim$10\% faster. This is due to some issues causing boxing and unboxing to occur, and thus slowing down the execution. We are currently debugging on this; once solved, we would definitely have better numbers.
