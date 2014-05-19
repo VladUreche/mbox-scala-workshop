@@ -27,7 +27,7 @@ This nesting and splitting of functionality makes is necessary to have deep mini
 
 %Since the elements of the CollectionLike can be primitive types, the methods implemented can receive or return boxes of primitive values, which degrades performance. Thus, triggering the miniboxing plugin on the type parameter of the element offers better performance. However, we have to annote only the generic type of the elements contained in the collection, and not the type constructor. Indeed, since this is an abstraction over a container that will always be an object, there is no need to make a primitive type optimized version for it. Therefore, we get better performance if we use a custom CollectionLike with a |@miniboxed| notation on the type |T|:
 
-Since the goal of Scala collections is to avoid code duplication, collection comprehensions, such as |map| and |filter|, all rely on a common mechanism: visiting each element in the collection, performing an action for it, and optionally adding a new element to the result collection. For example, |filter| visits all elements and for each element applies a predicate which decides whether the element should be part of the resulting collection or not.
+Since the goal of Scala collections is to avoid code duplication, collection comprehensions, such as |map| and |filter|, all rely on a common mechanism: visiting each element in the collection, performing an action for it and (optionally) adding the result to a new collection. For example, |filter| visits all elements and for each element applies a predicate which decides whether the element should be part of the resulting collection or not.
 
 The two key elements necessary for implementing collection comprehensions are: (1) the mechanism to visit each element using a custom function, which is implemented in |Traversable| and (2) a mechanism to build a collection element by element, which is the builder pattern. We will also present the Numeric pattern, which is used in methods like |sum| or |prod|.
 
@@ -50,7 +50,7 @@ However, since the Java Virtual Machine doesn't support functions (at least not 
    })
 \end{lstlisting-nobreak}
 
-Still, the |Function1| is provided by the standard library and can't be overriden with a miniboxed version. Hence, in order to specialize functions, we need to provide our own function traits, which are miniboxed and perform the desugaring by hand.
+The |Function1| trait is provided by the standard library and can't be overriden with a miniboxed version. Hence, in order to specialize functions, we need to provide our own function traits, which are miniboxed and perform the desugaring by hand.
 
 This is done by creating a custom |MyFunc1| trait that receives two type parameters, |T| and |R|, which signal the argument and return of our function, i.e |(T => R)|. This trait exposes an abstract |apply| function that will contain the actual code of the function. Miniboxing is triggered by annotating both of the type parameters with |@miniboxed|:
 
@@ -99,7 +99,7 @@ And the miniboxing transformation will translate this to:
  new `MyFunc1_JJ`[Int, Boolean] { ... }
 \end{lstlisting-nobreak}
 
-Now, any invocation of this function will actually invoke |apply_JJ|, thus completely avoiding boxing the primitive types |int| and |boolean| to their object representations.
+Now, any invocation of this function will actually invoke |apply_JJ|, thus completely avoiding boxing primitive types, such as |int| and |boolean|.
 
 % Note that only the |apply_JJ| is used in this case, since it determines the optimized version when both of the type parameters are primitive types. The others methods only forward to this method.
 %
@@ -148,9 +148,9 @@ The Builder pattern also shows how type constructor polymorphism can play an ess
 
 \subsection{Numeric Pattern}
 
-Defining a generic type for a class can sometimes leads to inconvenient situations. Sometimes, one needs classes that depends only on numerical values. Since there's no common ancestor for numeric types (primitive or object), it's impossible to specify an adequate upper bound for a generic type that would directly offer mathematical operations.
+Defining a generic type for a class can sometimes lead to inconvenient situations if one expects to have generic mathematical operations. Since the common ancestor for numeric types, |Any|, does not contain mathematical operations, the operations on generic types are quite limited.
 
-The Numeric pattern solves this issue and allows to use custom functions on type parameters. This is done by creating a generic |Numeric| trait that provides mathematical operations for a certain type. By example, one could define a way to add two numerical values, by providing such a definition to the trait:
+The Numeric pattern solves this issue by allowing  mathematical operations in a generic context. This is done by creating a generic |Numeric| trait that provides mathematical operations for a certain type. By example, one could define a way to add two numerical values, by providing such a definition to the trait:
 
 \begin{lstlisting-nobreak}
  trait Numeric[T] {
@@ -159,10 +159,10 @@ The Numeric pattern solves this issue and allows to use custom functions on type
  }
 \end{lstlisting-nobreak}
 
-If we specify the trait into different concrete extensions, we provide a concrete implementation that defines the addition between two values. We can write these specific classes for primitive numbers, e.g |Int| or |Float|, but we also could write it for a numeric class, such as |BigInteger|, as long as the definition is implemented. For instance, here's the code for the |Int| extension:
+We can extend the trait into different concrete implementations, that provide operations for each primitive type individually. This pattern also works for non-primitive number representations such as |BigInteger|. For instance, the code for |Numeric[Int]| would be:
 
 \begin{lstlisting-nobreak}
- implicit object Num_I extends Numeric[Int] {
+ implicit object NumInt extends Numeric[Int] {
    def plus(x: Int, y: Int): Int = x + y
    ...
  }
@@ -182,4 +182,4 @@ Now, every time we want to use a type parameter as a numeric type, we enforce th
  }
 \end{lstlisting-nobreak}
 
-Since the |Numeric| implementations are likely to use primitive type parameters, boxing and unboxing would frequently occur. This is where the miniboxing specialization steps in. With a simple |@miniboxed| annotation on the type parameter of the |Numeric| class, a concrete extension would override an optimized version for primitive type. The classes that use the |Numeric| objects should also have a |@miniboxed| annotation. This would avoid every occurrence of boxing and unboxing, and enhance greatly the performance.
+Since the |Numeric| implementations are likely to use primitive type parameters, boxing and unboxing would frequently occur. This is where the miniboxing specialization steps in. With a simple |@miniboxed| annotation on the type parameter of the |Numeric| class, a concrete extension would override an optimized version for primitive types. The classes that use the |Numeric| objects should also have a |@miniboxed| annotation. This would avoid every occurrence of boxing and unboxing, and greatly enhance the performance.

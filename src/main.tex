@@ -1,4 +1,4 @@
-\documentclass[10pt]{sigplanconf}
+\documentclass[preprint, 10pt]{sigplanconf}
 
 \usepackage{amsmath}
 \usepackage{url}
@@ -188,14 +188,14 @@
 \newcommand{\newterm}[1]{{\em #1}}
 
 % Paper HACKS
-\setstretch{0.97}
+\setstretch{0.95}
 \renewcommand{\bibfont}{\scriptsize}
 %\renewcommand{\UrlFont}{\scriptsize}
 \renewcommand*{\UrlFont}{\ttfamily\footnotesize\relax}
 
 \begin{document}
 
-\clubpenalty=10000
+\clubpenalty = 10000
 \widowpenalty = 10000
 
 \titlebanner{DRAFT - Please do not circulate}        % These are ignored unless
@@ -209,9 +209,13 @@
 
 \maketitle
 
+
 \input{abstract.tex}
 
-% \category{E.2}{Object representation}{}
+\keywords
+Scala, generics, specialization, miniboxing, primitive types
+
+%\category{E.2}{Object representation}{}
 
 % \keywords
 % specialization; miniboxing; scala collections; hashmap; builder pattern; type classes; numeric pattern; macros; quasiquotes; Scala
