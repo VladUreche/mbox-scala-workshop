@@ -9,14 +9,12 @@ To benchmark performance, we implemented a mockup of the Scala collections libra
  // function (x, y) => x * y
  val fxy =
    new Function1[Tuple2[Double,Double], Double] {
-     def apply(t: Tuple2[Double, Double]): Double = t._1 * t._2
-   }
+     def apply(t: Tuple2[Double, Double]): Double = t._1 * t._2 }
 
  // function x => x * x
  val fxx =
    new Function1[Double, Double] {
-     def apply(x: Double): Double = x * x
-   }
+     def apply(x: Double): Double = x * x }
 
  // intermediary sums:
  val sumx  = xs.sum
@@ -39,15 +37,18 @@ If we run one version of the above benchmark with our mock-up collection, one wi
 \begin{center}
 \begin{tabular}{ |c|c|c| }
  \hline
- Amount of points & Generic [ms] & Miniboxed [ms] \\
+ Amount of points & Miniboxed [ms] & Generic [ms] \\
  \hline
- 500000 & 304 & 545 \\
-1000000 & 1184 & 2177 \\
+1000000 &  160 &  279 \\
+% 1500000 &  245 &  420 \\
+2000000 &  328 &  557 \\
+% 2500000 &  407 &  693 \\
+3000000 &  487 &  831 \\
  \hline
 \end{tabular}
 \end{center}
 
-The results show 44-45\% speedups when miniboxed collections are used, without any intervention on the programmer's side\footnote{The benchmarking code is identical for the two transformations, only the library contains miniboxed annotations.}.
+The results show 40-50\% speedups when miniboxed collections are used, without any intervention on the programmer's side\footnote{The benchmarking code is identical for the two transformations, only the library contains miniboxed annotations.}.
 %We expect we can further refine these numbers to up to 70\% speedup by tweaking the transformation.
 It is also worth noting that scala specialization \cite{iuli-thesis}, the current solution used in the Scala compiler, was not able to successfully compile the example.
 
